@@ -380,8 +380,7 @@ mod tests {
 
     #[test]
     fn rejects_datagrams_larger_than_the_core_limit() {
-        let mut transport =
-            UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let mut transport = UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
         transport
             .set_read_timeout(Some(std::time::Duration::from_secs(2)))
             .unwrap();
