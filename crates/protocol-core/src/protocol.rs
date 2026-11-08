@@ -270,6 +270,7 @@ mod tests {
                     hostname: b"workstation",
                 },
                 kind: PeerJoinKind::BroadcastEntry,
+                supports_utf8: false,
             })
         );
     }
@@ -285,6 +286,7 @@ mod tests {
                     hostname: b"workstation",
                 },
                 kind: PeerJoinKind::AnswerEntry,
+                supports_utf8: false,
             })
         );
     }
@@ -435,6 +437,49 @@ mod tests {
             }
             other => panic!("unexpected event: {other:?}"),
         }
+    }
+
+    #[test]
+    fn accepts_utf8_capability_on_entry_and_answer_entry_only() {
+        let mut entry = packet(b"alice", b"workstation", CommandKind::BroadcastEntry, b"");
+        entry.command_word = 0x0100_0001;
+        entry.option_flags = IPMSG_CAPUTF8OPT;
+        assert!(matches!(
+            classify_packet(&entry),
+            Ok(ProtocolEvent::PeerJoined { supports_utf8: true, .. })
+        ));
+
+        let mut answer = packet(b"alice", b"workstation", CommandKind::AnswerEntry, b"");
+        answer.command_word = 0x0100_0003;
+        answer.option_flags = IPMSG_CAPUTF8OPT;
+        assert!(matches!(
+            classify_packet(&answer),
+            Ok(ProtocolEvent::PeerJoined { supports_utf8: true, .. })
+        ));
+
+        let mut exit = packet(b"alice", b"workstation", CommandKind::BroadcastExit, b"");
+        exit.command_word = 0x0100_0002;
+        exit.option_flags = IPMSG_CAPUTF8OPT;
+        assert_eq!(classify_packet(&exit), Err(ProtocolError::InconsistentPacket));
+    }
+
+    #[test]
+    fn recognizes_utf8_and_legacy_message_encodings() {
+        let body = "こんにちは".as_bytes();
+        let mut utf8 = packet(b"alice", b"pc", CommandKind::SendMessage, body);
+        utf8.command_word = 0x0080_0020;
+        utf8.option_flags = IPMSG_UTF8OPT;
+        assert!(matches!(
+            classify_packet(&utf8),
+            Ok(ProtocolEvent::MessageReceived { encoding: MessageEncoding::Utf8, body: actual, .. })
+                if actual == body
+        ));
+
+        let legacy = packet(b"alice", b"pc", CommandKind::SendMessage, b"hello");
+        assert!(matches!(
+            classify_packet(&legacy),
+            Ok(ProtocolEvent::MessageReceived { encoding: MessageEncoding::Cp932, .. })
+        ));
     }
 
     #[test]
