@@ -43,6 +43,7 @@ pub enum ProtocolEvent<'a> {
 pub enum ProtocolError {
     InvalidIdentity,
     UnsupportedCommand(u8),
+    InconsistentPacket,
 }
 
 pub open spec fn peer_identity_well_formed(identity: &PeerIdentity) -> bool {
@@ -101,6 +102,18 @@ pub fn classify_packet<'a>(
             Err(_) => true,
         }
 {
+    let command_id = (packet.command_word & 0xff) as u8;
+    let command_matches = match packet.command {
+        CommandKind::BroadcastEntry => command_id == 1,
+        CommandKind::BroadcastExit => command_id == 2,
+        CommandKind::AnswerEntry => command_id == 3,
+        CommandKind::SendMessage => command_id == 32,
+        CommandKind::Unsupported(expected) => command_id == expected,
+    };
+    if !command_matches || packet.option_flags != (packet.command_word & !0xffu32) {
+        return Err(ProtocolError::InconsistentPacket);
+    }
+
     let identity = match make_identity(packet.username, packet.hostname) {
         Ok(identity) => identity,
         Err(error) => return Err(error),
@@ -141,7 +154,13 @@ mod tests {
             packet_number: 7,
             username,
             hostname,
-            command_word: 0,
+            command_word: match command {
+                CommandKind::BroadcastEntry => 1,
+                CommandKind::BroadcastExit => 2,
+                CommandKind::AnswerEntry => 3,
+                CommandKind::SendMessage => 32,
+                CommandKind::Unsupported(id) => id as u32,
+            },
             command,
             option_flags: 0,
             additional_data,
@@ -189,6 +208,33 @@ mod tests {
             }
             other => panic!("unexpected event: {other:?}"),
         }
+    }
+
+    #[test]
+    fn rejects_inconsistent_command_word_and_classification() {
+        let mut parsed = packet(
+            b"alice",
+            b"workstation",
+            CommandKind::BroadcastEntry,
+            b"",
+        );
+        parsed.command_word = 32;
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::InconsistentPacket)
+        );
+
+        let mut parsed = packet(
+            b"alice",
+            b"workstation",
+            CommandKind::BroadcastEntry,
+            b"",
+        );
+        parsed.option_flags = 0x0100_0000;
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::InconsistentPacket)
+        );
     }
 
     #[test]
