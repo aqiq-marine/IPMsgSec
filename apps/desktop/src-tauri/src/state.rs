@@ -6,8 +6,43 @@ use std::sync::{
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use ipmsgsec_app::{ApplicationConfig, ApplicationHandle, ApplicationService, SessionEvent};
+use ipmsgsec_app::{
+    AppEvent, ApplicationConfig, ApplicationHandle, ApplicationService, SessionEvent, TextEncoding,
+};
+use serde::Serialize;
 use tauri::{AppHandle, Emitter};
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum DesktopSessionEvent {
+    Started { local_address: String },
+    Protocol { source: String, event: AppEvent },
+    MessageSubmitted { target: String, encoding: TextEncoding },
+    TransportError { message: String },
+    EventsDropped { count: u64 },
+    Stopped,
+}
+
+impl From<SessionEvent> for DesktopSessionEvent {
+    fn from(event: SessionEvent) -> Self {
+        match event {
+            SessionEvent::Started { local_address } => Self::Started {
+                local_address: local_address.to_string(),
+            },
+            SessionEvent::Protocol { source, event } => Self::Protocol {
+                source: source.to_string(),
+                event,
+            },
+            SessionEvent::MessageSubmitted { target, encoding } => Self::MessageSubmitted {
+                target: target.to_string(),
+                encoding,
+            },
+            SessionEvent::TransportError { message } => Self::TransportError { message },
+            SessionEvent::EventsDropped { count } => Self::EventsDropped { count },
+            SessionEvent::Stopped => Self::Stopped,
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct DesktopState {
@@ -44,7 +79,7 @@ impl DesktopState {
         self.event_pump_stop.store(false, Ordering::Release);
         let service = Arc::clone(&self.service);
         let stop = Arc::clone(&self.event_pump_stop);
-        let pump = thread::Builder::new()
+        let pump = match thread::Builder::new()
             .name("ipmsgsec-desktop-events".to_owned())
             .spawn(move || {
                 while !stop.load(Ordering::Acquire) {
@@ -54,7 +89,7 @@ impl DesktopState {
                     };
                     match next_event {
                         Some(Ok(event)) => {
-                            let _ = app.emit("session-event", event);
+                            let _ = app.emit("session-event", DesktopSessionEvent::from(event));
                         }
                         Some(Err(std::sync::mpsc::TryRecvError::Empty)) | None => {
                             thread::sleep(Duration::from_millis(20));
@@ -62,8 +97,19 @@ impl DesktopState {
                         Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => break,
                     }
                 }
-            })
-            .map_err(|error| format!("could not start event forwarding: {error}"))?;
+            }) {
+            Ok(pump) => pump,
+            Err(error) => {
+                self.handle
+                    .lock()
+                    .map_err(|_| "desktop handle lock is poisoned".to_owned())?
+                    .take();
+                if let Some(service) = service_slot.take() {
+                    let _ = service.shutdown();
+                }
+                return Err(format!("could not start event forwarding: {error}"));
+            }
+        };
         *self
             .event_pump
             .lock()
