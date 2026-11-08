@@ -106,8 +106,27 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
     Ok(value)
 }
 
+/// Logical relation between a command classification and its wire ID.
+pub open spec fn command_matches(command: CommandKind, command_id: u8) -> bool
+{
+    match command {
+        CommandKind::BroadcastEntry => command_id == 1,
+        CommandKind::BroadcastExit => command_id == 2,
+        CommandKind::AnswerEntry => command_id == 3,
+        CommandKind::SendMessage => command_id == 32,
+        CommandKind::Unsupported(other) =>
+            other == command_id
+            && command_id != 1
+            && command_id != 2
+            && command_id != 3
+            && command_id != 32,
+    }
+}
+
 /// Convert a command's low byte to the supported command classification.
 fn classify_command(command_id: u8) -> (result: CommandKind)
+    ensures
+        command_matches(result, command_id),
 {
     match command_id {
         1 => CommandKind::BroadcastEntry,
@@ -131,7 +150,8 @@ pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseErr
                 && packet.username.len() > 0
                 && packet.hostname.len() > 0
                 && packet.additional_data.len() <= MAX_PACKET_SIZE
-                && packet.option_flags == (packet.command_word & !0xffu32),
+                && packet.option_flags == (packet.command_word & !0xffu32)
+                && command_matches(packet.command, (packet.command_word & 0xff) as u8),
             Err(_) => true,
         }
 {
@@ -249,7 +269,7 @@ mod tests {
     #[test]
     fn preserves_unknown_command_as_unsupported() {
         let packet = parse(b"1:7:alice:pc:999:body").unwrap();
-        assert_eq!(packet.command, CommandKind::Unsupported(999u16 as u8));
+        assert_eq!(packet.command, CommandKind::Unsupported(231));
         assert_eq!(packet.command_word, 999);
     }
 
@@ -309,6 +329,14 @@ mod tests {
     fn empty_additional_data_is_preserved() {
         let packet = parse(b"1:2:alice:pc:32:").unwrap();
         assert_eq!(packet.additional_data, b"");
+    }
+
+    #[test]
+    fn accepts_maximum_u32_command_word() {
+        let packet = parse(b"1:2:alice:pc:4294967295:body").unwrap();
+        assert_eq!(packet.command_word, u32::MAX);
+        assert_eq!(packet.command, CommandKind::Unsupported(255));
+        assert_eq!(packet.option_flags, 0xffff_ff00);
     }
 
     #[test]
