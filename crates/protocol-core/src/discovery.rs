@@ -249,8 +249,9 @@ mod tests {
     fn duplicate_broadcast_entry_preserves_peer_and_still_replies() {
         let state = ProtocolState::empty();
         let target = ReplyTarget::new(7);
-        let first = apply_discovery_event(&state, &joined(PeerJoinKind::BroadcastEntry), target, 10)
-            .unwrap();
+        let first =
+            apply_discovery_event(&state, &joined(PeerJoinKind::BroadcastEntry), target, 10)
+                .unwrap();
         let second = apply_discovery_event(
             &first.state,
             &joined(PeerJoinKind::BroadcastEntry),
@@ -357,5 +358,4 @@ mod tests {
         );
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
     }
-
 }
