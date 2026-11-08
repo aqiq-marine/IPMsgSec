@@ -39,7 +39,7 @@ These command values are confirmed in upstream src/ipmsg.h. MVP initially suppor
 3. The new instance adds peers from received IPMSG_ANSENTRY packets.
 4. On shutdown, broadcast IPMSG_BR_EXIT.
 
-UDP loss is possible. The peer table is an observed peer cache, not authoritative membership. Expiration and duplicate/stale announcement behavior remain to be specified.
+UDP loss is possible. The peer table is an observed peer cache, not authoritative membership. The current state core treats duplicate joins as idempotent no-ops and unknown departures as no-ops. Peer expiration and stale departure/rejoin ordering remain unspecified.
 
 ## Text messages
 
