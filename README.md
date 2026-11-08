@@ -136,3 +136,13 @@ The initial workspace and verification smoke test are now present. See:
 - [CI workflow](.github/workflows/ci.yml)
 
 The smoke proof checks bounded offset arithmetic only. The runtime parser has unit tests, but its Verus proof and the CI run for the current revision are still pending. No end-to-end security theorem is claimed.
+
+
+## CLI peer discovery
+
+A minimal IPv4 discovery CLI is available in `crates/cli`. It requires
+explicit bind and announcement destinations; see
+[CLI discovery and interoperability](docs/cli-discovery.md) for build/run
+examples, same-host multi-instance tests, trust boundaries, and the selected
+external interoperability target. This does not imply that external-client
+interoperability has already been tested.
