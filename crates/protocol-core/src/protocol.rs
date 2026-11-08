@@ -314,7 +314,7 @@ mod tests {
             b"alice",
             b"workstation",
             CommandKind::SendMessage,
-            b"body\\0attachment",
+            b"body\0attachment",
         );
         assert_eq!(
             classify_packet(&extension),
