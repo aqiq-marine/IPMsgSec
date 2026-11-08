@@ -166,16 +166,20 @@ Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on P
 
 Acceptance: Rust tests (80 passed), CLI subprocess integration tests, formatting, Clippy, and the unchanged protocol-core Verus target passed on PR #9 (run [42457026720](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42457026720)). Worker and application code remain unverified.
 
-### Implementation PR 9 — Tauri 2 GUI MVP
+### Implementation PR 9 — Tauri 2 desktop shell and tray lifecycle (in progress)
 
-- Add a Tauri 2 desktop shell with a TypeScript/React frontend.
-- Invoke the shared application API through a narrow Rust command boundary.
-- Use events for state-change notifications and commands for request/response operations or snapshots.
-- Implement peer list, chat view, message composer, and network settings.
-- Keep frontend DTOs owned and serializable; never let the frontend directly manipulate protocol-core state or UDP sockets.
-- Clearly distinguish observed peer identity from authenticated identity. No authentication is currently provided.
+- [x] Use Tauri 2 with React and TypeScript.
+- [x] Prioritize Windows for initial implementation and acceptance testing.
+- [x] Show the main window on startup.
+- [x] Intercept the main window close request and hide it without stopping the process/session.
+- [x] Provide a tray Open action that restores, unminimizes, and focuses the main window.
+- [x] Provide an explicit tray Quit action. Once ApplicationService is integrated, this path must perform graceful worker shutdown before process exit.
+- [x] Enforce single-instance behavior; a second launch focuses the existing window.
+- [x] Keep desktop dependencies outside the root Rust workspace and preserve the existing Verus proof boundary.
+- [ ] Add the Tauri shell, tray implementation, frontend scaffold, and dedicated desktop build checks.
+- [ ] Verify the tray icon, window hide/restore, quit, and single-instance behavior on Windows.
 
-Acceptance: GUI and CLI use the same application layer; GUI tests cover rendering/state mapping where practical; the protocol-core proof target remains unchanged.
+Acceptance: Windows startup shows the main window and tray icon; close hides rather than exits; tray Open restores the existing window; tray Quit exits; second launch focuses the existing process. The initial shell does not yet start ApplicationService or claim network messaging functionality. See [ADR 0010](adr/0010-tauri-desktop-and-tray-lifecycle.md) and [desktop architecture](desktop-architecture.md).
 
 ### Implementation PR 10 — Message delivery semantics
 
