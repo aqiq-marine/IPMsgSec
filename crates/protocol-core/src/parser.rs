@@ -142,8 +142,8 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
             return Err(ParseError::NumericOverflow);
         }
 
-        let prefix = digits@.take(index as int);
         proof {
+            let ghost prefix = digits@.take(index as int);
             assert(digit as int == byte as int - b'0' as int);
             assert(value as int * 10 + digit as int <= u64::MAX as int);
             decimal_value_push(prefix, byte);
