@@ -267,7 +267,7 @@ pub fn apply_event(
                     if state.peers.len() >= MAX_PEERS {
                         return Err(StateError::TableFull);
                     }
-                    let mut next = state.clone();
+                    let mut next = copy_state(state);
                     next.peers.push(Peer {
                         username: copy_bytes(username),
                         hostname: copy_bytes(hostname),
@@ -285,7 +285,7 @@ pub fn apply_event(
         PeerEvent::Departed { .. } => {
             match found {
                 Some(index) => {
-                    let mut next = state.clone();
+                    let mut next = copy_state(state);
                     next.peers.remove(index);
                     reveal(peer_state_well_formed);
                     assert(peer_state_well_formed(&next));
