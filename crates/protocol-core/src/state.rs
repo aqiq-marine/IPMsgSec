@@ -619,3 +619,24 @@ mod tests {
         assert_eq!(state.len(), MAX_PEERS);
     }
 }
+    #[test]
+    fn duplicate_join_updates_absence_status_without_resetting_first_seen() {
+        let state = PeerState::empty();
+        let first = apply_event(&state, joined(b"alice", b"pc", 10)).unwrap();
+        let updated = apply_event(
+            &first.state,
+            PeerEvent::Joined {
+                username: b"alice",
+                hostname: b"pc",
+                observed_at: 20,
+                supports_utf8: false,
+                is_absent: true,
+            },
+        ).unwrap();
+
+        assert_eq!(updated.outcome, TransitionOutcome::Updated);
+        assert_eq!(updated.state.peers()[0].first_seen_at(), 10);
+        assert!(updated.state.peers()[0].is_absent());
+        assert!(!first.state.peers()[0].is_absent());
+    }
+
