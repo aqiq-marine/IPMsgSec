@@ -4,12 +4,12 @@ use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use ipmsgsec_protocol_core::{
-    MessageEncoding, ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
+use ipmsgsec_app::{
+    AppEvent, ApplicationSession, PeerInfo, PeerIdentityDto, TextDecodeFailure,
+    encode_message_for_peer,
 };
 use ipmsgsec_transport_udp::{
-    RECEIVE_BUFFER_SIZE, UdpTransport, decode_text_body, encode_broadcast_entry,
-    encode_broadcast_exit, encode_send_message_with_encoding, encode_text_body,
+    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
 };
 
 const DEFAULT_DURATION_SECS: u64 = 30;
@@ -167,42 +167,45 @@ impl PacketNumbers {
     }
 }
 
-fn display_peers(state: &ProtocolState) {
-    println!("Peers ({}):", state.peers().len());
-    for peer in state.peers().peers() {
+fn display_peers(peers: &[PeerInfo]) {
+    println!("Peers ({}):", peers.len());
+    for peer in peers {
         println!(
             "  {}@{}",
-            peer.username().escape_ascii(),
-            peer.hostname().escape_ascii()
+            peer.identity.username.escape_ascii(),
+            peer.identity.hostname.escape_ascii()
         );
-        println!("    UTF-8 capability: {}", peer.supports_utf8());
+        println!("    UTF-8 capability: {}", peer.supports_utf8);
     }
 }
 
 fn display_message(
-    sender: ipmsgsec_protocol_core::PeerIdentity<'_>,
+    sender: &PeerIdentityDto,
     source: SocketAddr,
     body: &[u8],
-    encoding: MessageEncoding,
+    encoding: ipmsgsec_app::TextEncoding,
+    decoded_text: Option<&str>,
+    decode_error: Option<TextDecodeFailure>,
 ) {
-    match decode_text_body(body, encoding) {
-        Ok(text) => println!(
+    if let Some(text) = decoded_text {
+        println!(
             "Message from {}@{} via {} ({encoding:?}): {}",
-            sender.username().escape_ascii(),
-            sender.hostname().escape_ascii(),
+            sender.username.escape_ascii(),
+            sender.hostname.escape_ascii(),
             source,
             text.escape_debug()
-        ),
-        Err(error) => println!(
-            "Message from {}@{} via {} ({encoding:?}, decode error {error:?}): \\x{}",
-            sender.username().escape_ascii(),
-            sender.hostname().escape_ascii(),
+        );
+    } else {
+        println!(
+            "Message from {}@{} via {} ({encoding:?}, decode error {decode_error:?}): \\x{}",
+            sender.username.escape_ascii(),
+            sender.hostname.escape_ascii(),
             source,
             body.iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<Vec<_>>()
                 .join("")
-        ),
+        );
     }
 }
 
@@ -251,7 +254,7 @@ fn run(config: Config) -> Result<(), String> {
     );
 
     let started = Instant::now();
-    let mut state = ProtocolState::empty();
+    let mut session = ApplicationSession::new();
     let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
 
     while started.elapsed() < config.duration {
@@ -269,85 +272,63 @@ fn run(config: Config) -> Result<(), String> {
             }
         };
 
-        let event = match received.classify() {
-            Ok(event) => event,
+        let observed_at = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let update = match session.handle_datagram(&received, observed_at) {
+            Ok(update) => update,
             Err(error) => {
                 eprintln!(
-                    "ignored malformed/unsupported datagram from {}: {error:?}",
+                    "ignored malformed/unsupported datagram from {}: {error}",
                     received.source()
                 );
                 continue;
             }
         };
 
-        if let ProtocolEvent::MessageReceived {
+        if let AppEvent::MessageReceived {
             sender,
             body,
             encoding,
-        } = event
+            decoded_text,
+            decode_error,
+        } = &update.event
         {
-            display_message(sender, received.source(), body, encoding);
-            continue;
+            display_message(
+                sender,
+                received.source(),
+                body,
+                *encoding,
+                decoded_text.as_deref(),
+                *decode_error,
+            );
         }
 
-        let transition = match apply_discovery_event(
-            &state,
-            &event,
-            received.reply_target(),
-            started.elapsed().as_millis().min(u64::MAX as u128) as u64,
-        ) {
-            Ok(transition) => transition,
-            Err(error) => {
-                eprintln!("ignored event from {}: {error:?}", received.source());
-                continue;
-            }
-        };
-
-        let changed = transition.peer_outcome != TransitionOutcome::Unchanged;
-        state = transition.state;
-
-        if let ProtocolEvent::PeerJoined { supports_utf8, .. } = event
+        if let AppEvent::PeerJoined { peer, .. } = &update.event
             && let Some(index) = pending_send_to
                 .iter()
                 .position(|target| *target == received.source())
             && let Some(body) = &config.message
         {
             let target = pending_send_to.remove(index);
-            let encoding = if supports_utf8 {
-                MessageEncoding::Utf8
-            } else {
-                MessageEncoding::Cp932
-            };
-            match encode_text_body(body, encoding) {
-                Ok(encoded_body) => {
-                    let packet_number = packet_numbers.take()?;
-                    match encode_send_message_with_encoding(
-                        packet_number,
-                        config.username.as_bytes(),
-                        config.hostname.as_bytes(),
-                        &encoded_body,
-                        encoding,
-                    ) {
-                        Ok(packet) => match transport.send_to(target, &packet) {
-                            Ok(_) => {
-                                println!("Sent SENDMSG to {target} using {encoding:?}")
-                            }
-                            Err(error) => {
-                                eprintln!("could not send SENDMSG to {target}: {error}")
-                            }
-                        },
-                        Err(error) => {
-                            eprintln!("cannot encode SENDMSG for {target}: {error}")
-                        }
-                    }
-                }
-                Err(error) => {
-                    eprintln!("cannot encode message for {target} using {encoding:?}: {error}")
-                }
+            let packet_number = packet_numbers.take()?;
+            match encode_message_for_peer(
+                packet_number,
+                config.username.as_bytes(),
+                config.hostname.as_bytes(),
+                body,
+                peer.supports_utf8,
+            ) {
+                Ok(encoded) => match transport.send_to(target, &encoded.bytes) {
+                    Ok(_) => println!(
+                        "Sent SENDMSG to {target} using {:?}",
+                        encoded.encoding
+                    ),
+                    Err(error) => eprintln!("could not send SENDMSG to {target}: {error}"),
+                },
+                Err(error) => eprintln!("cannot encode message for {target}: {error}"),
             }
         }
 
-        if let Some(action) = transition.actions.get(0) {
+        if let Some(action) = update.response_action {
             let packet_number = packet_numbers.take()?;
             if let Err(error) = transport.send_action(
                 &received,
@@ -360,17 +341,17 @@ fn run(config: Config) -> Result<(), String> {
             }
         }
 
-        if changed {
-            match event {
-                ProtocolEvent::PeerJoined { .. } => {
+        if update.peers_changed {
+            match &update.event {
+                AppEvent::PeerJoined { .. } => {
                     println!("Peer joined from {}", received.source())
                 }
-                ProtocolEvent::PeerDeparted(_) => {
+                AppEvent::PeerDeparted { .. } => {
                     println!("Peer departed from {}", received.source())
                 }
-                ProtocolEvent::MessageReceived { .. } => unreachable!("handled above"),
+                AppEvent::MessageReceived { .. } => unreachable!("messages do not change peers"),
             }
-            display_peers(&state);
+            display_peers(&session.peers());
         }
     }
 
