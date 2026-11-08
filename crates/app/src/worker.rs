@@ -6,20 +6,15 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::mpsc::{
-    self, Receiver, RecvTimeoutError, SyncSender, TryRecvError, TrySendError,
-};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TryRecvError, TrySendError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_transport_udp::{
-    RECEIVE_BUFFER_SIZE, ReceiveError, UdpTransport, encode_broadcast_entry,
-    encode_broadcast_exit,
+    RECEIVE_BUFFER_SIZE, ReceiveError, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
 };
 
-use crate::{
-    AppEvent, ApplicationSession, PeerInfo, TextEncoding, encode_message_for_peer,
-};
+use crate::{AppEvent, ApplicationSession, PeerInfo, TextEncoding, encode_message_for_peer};
 
 const DEFAULT_QUEUE_CAPACITY: usize = 64;
 const MAX_QUEUE_CAPACITY: usize = 1024;
@@ -57,7 +52,9 @@ impl ApplicationConfig {
 /// State-change and diagnostic events emitted by the worker.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SessionEvent {
-    Started { local_address: SocketAddr },
+    Started {
+        local_address: SocketAddr,
+    },
     Protocol {
         source: SocketAddr,
         event: AppEvent,
@@ -66,10 +63,14 @@ pub enum SessionEvent {
         target: SocketAddr,
         encoding: TextEncoding,
     },
-    TransportError { message: String },
+    TransportError {
+        message: String,
+    },
     /// Number of events dropped because the bounded event queue was full.
     /// The worker never blocks on a slow UI; overload is surfaced explicitly.
-    EventsDropped { count: u64 },
+    EventsDropped {
+        count: u64,
+    },
     Stopped,
 }
 
@@ -105,14 +106,19 @@ pub enum ServiceError {
 impl std::fmt::Display for ServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidQueueCapacity => write!(f, "queue capacity must be between 1 and {MAX_QUEUE_CAPACITY}"),
+            Self::InvalidQueueCapacity => write!(
+                f,
+                "queue capacity must be between 1 and {MAX_QUEUE_CAPACITY}"
+            ),
             Self::InvalidConfiguration => write!(f, "invalid application session configuration"),
             Self::CommandQueueFull => write!(f, "application command queue is full"),
             Self::WorkerStopped => write!(f, "application worker has stopped"),
             Self::WorkerPanicked => write!(f, "application worker panicked"),
             Self::OperationFailed => write!(f, "application operation failed"),
             Self::PeerNotObserved => write!(f, "target is not a currently observed peer"),
-            Self::MessageEncodingFailed => write!(f, "message cannot be encoded for the target peer"),
+            Self::MessageEncodingFailed => {
+                write!(f, "message cannot be encoded for the target peer")
+            }
             Self::DatagramSendFailed => write!(f, "UDP datagram could not be submitted"),
         }
     }
@@ -169,10 +175,12 @@ impl ApplicationHandle {
     }
 
     fn try_send(&self, command: WorkerCommand) -> Result<(), ServiceError> {
-        self.commands.try_send(command).map_err(|error| match error {
-            mpsc::TrySendError::Full(_) => ServiceError::CommandQueueFull,
-            mpsc::TrySendError::Disconnected(_) => ServiceError::WorkerStopped,
-        })
+        self.commands
+            .try_send(command)
+            .map_err(|error| match error {
+                mpsc::TrySendError::Full(_) => ServiceError::CommandQueueFull,
+                mpsc::TrySendError::Disconnected(_) => ServiceError::WorkerStopped,
+            })
     }
 }
 
@@ -206,8 +214,8 @@ impl ApplicationService {
             return Err(ServiceError::InvalidConfiguration);
         }
 
-        let mut transport = UdpTransport::bind(config.bind_address)
-            .map_err(|_| ServiceError::OperationFailed)?;
+        let mut transport =
+            UdpTransport::bind(config.bind_address).map_err(|_| ServiceError::OperationFailed)?;
         transport
             .set_broadcast(true)
             .map_err(|_| ServiceError::OperationFailed)?;
@@ -247,10 +255,7 @@ impl ApplicationService {
         self.events.try_recv()
     }
 
-    pub fn recv_event_timeout(
-        &self,
-        timeout: Duration,
-    ) -> Result<SessionEvent, RecvTimeoutError> {
+    pub fn recv_event_timeout(&self, timeout: Duration) -> Result<SessionEvent, RecvTimeoutError> {
         self.events.recv_timeout(timeout)
     }
 
@@ -299,16 +304,14 @@ impl PacketNumbers {
 
     fn take(&mut self) -> Result<u64, ServiceError> {
         let current = self.next;
-        self.next = current.checked_add(1).ok_or(ServiceError::OperationFailed)?;
+        self.next = current
+            .checked_add(1)
+            .ok_or(ServiceError::OperationFailed)?;
         Ok(current)
     }
 }
 
-fn emit(
-    events: &SyncSender<SessionEvent>,
-    event: SessionEvent,
-    dropped: &mut u64,
-) {
+fn emit(events: &SyncSender<SessionEvent>, event: SessionEvent, dropped: &mut u64) {
     if *dropped > 0 {
         match events.try_send(SessionEvent::EventsDropped { count: *dropped }) {
             Ok(()) => *dropped = 0,
@@ -371,9 +374,13 @@ fn run_worker(
     let mut peers: HashMap<SocketAddr, PeerInfo> = HashMap::new();
     let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
 
-    emit(&events, SessionEvent::Started {
-        local_address: transport.local_addr().unwrap_or(config.bind_address),
-    }, &mut dropped_events);
+    emit(
+        &events,
+        SessionEvent::Started {
+            local_address: transport.local_addr().unwrap_or(config.bind_address),
+        },
+        &mut dropped_events,
+    );
     let _ = send_entry(
         &transport,
         &config.announce_to,
@@ -400,7 +407,11 @@ fn run_worker(
                     );
                     let _ = reply.send(result);
                 }
-                Ok(WorkerCommand::SendMessage { target, text, reply }) => {
+                Ok(WorkerCommand::SendMessage {
+                    target,
+                    text,
+                    reply,
+                }) => {
                     let result = match peers.get(&target) {
                         None => Err(ServiceError::PeerNotObserved),
                         Some(peer) => {
@@ -417,10 +428,14 @@ fn run_worker(
                             }) {
                                 Ok(encoded) => match transport.send_to(target, &encoded.bytes) {
                                     Ok(sent) if sent == encoded.bytes.len() => {
-                                        emit(&events, SessionEvent::MessageSubmitted {
-                                            target,
-                                            encoding: encoded.encoding,
-                                        }, &mut dropped_events);
+                                        emit(
+                                            &events,
+                                            SessionEvent::MessageSubmitted {
+                                                target,
+                                                encoding: encoded.encoding,
+                                            },
+                                            &mut dropped_events,
+                                        );
                                         Ok(encoded.encoding)
                                     }
                                     _ => Err(ServiceError::DatagramSendFailed),
@@ -492,32 +507,52 @@ fn run_worker(
                                         &config.username,
                                         &config.hostname,
                                     ) {
-                                        emit(&events, SessionEvent::TransportError {
-                                            message: error.to_string(),
-                                        }, &mut dropped_events);
+                                        emit(
+                                            &events,
+                                            SessionEvent::TransportError {
+                                                message: error.to_string(),
+                                            },
+                                            &mut dropped_events,
+                                        );
                                     }
                                 }
-                                Err(error) => emit(&events, SessionEvent::TransportError {
-                                    message: error.to_string(),
-                                }, &mut dropped_events),
+                                Err(error) => emit(
+                                    &events,
+                                    SessionEvent::TransportError {
+                                        message: error.to_string(),
+                                    },
+                                    &mut dropped_events,
+                                ),
                             }
                         }
-                        emit(&events, SessionEvent::Protocol {
-                            source,
-                            event: update.event,
-                        }, &mut dropped_events);
+                        emit(
+                            &events,
+                            SessionEvent::Protocol {
+                                source,
+                                event: update.event,
+                            },
+                            &mut dropped_events,
+                        );
                     }
-                    Err(error) => emit(&events, SessionEvent::TransportError {
-                        message: format!("ignored datagram from {source}: {error}"),
-                    }, &mut dropped_events),
+                    Err(error) => emit(
+                        &events,
+                        SessionEvent::TransportError {
+                            message: format!("ignored datagram from {source}: {error}"),
+                        },
+                        &mut dropped_events,
+                    ),
                 }
             }
             Err(ReceiveError::Io(error))
                 if error.kind() == std::io::ErrorKind::WouldBlock
                     || error.kind() == std::io::ErrorKind::TimedOut => {}
-            Err(error) => emit(&events, SessionEvent::TransportError {
-                message: error.to_string(),
-            }, &mut dropped_events),
+            Err(error) => emit(
+                &events,
+                SessionEvent::TransportError {
+                    message: error.to_string(),
+                },
+                &mut dropped_events,
+            ),
         }
     }
 
@@ -527,9 +562,13 @@ fn run_worker(
     {
         for target in &config.announce_to {
             if let Err(error) = transport.send_to(*target, &packet) {
-                emit(&events, SessionEvent::TransportError {
-                    message: format!("could not send BR_EXIT to {target}: {error}"),
-                }, &mut dropped_events);
+                emit(
+                    &events,
+                    SessionEvent::TransportError {
+                        message: format!("could not send BR_EXIT to {target}: {error}"),
+                    },
+                    &mut dropped_events,
+                );
             }
         }
     }
