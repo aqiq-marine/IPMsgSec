@@ -5,11 +5,13 @@
 
 use crate::protocol::{PeerIdentity, PeerJoinKind, ProtocolEvent};
 use crate::state::{
-    PeerEvent, PeerState, StateError, TransitionOutcome, apply_event, peer_state_well_formed,
+    PeerEvent, PeerState, StateError, TransitionOutcome, apply_event,
 };
 use vstd::prelude::*;
 
 verus! {
+
+use crate::state::peer_state_well_formed;
 
 /// Current maximum number of abstract actions emitted by one transition.
 pub const MAX_ACTIONS: usize = 1;
