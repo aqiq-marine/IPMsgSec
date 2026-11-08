@@ -57,6 +57,8 @@ and peer metadata remain unauthenticated network input.
 DTOs do not expose `ReplyTarget`, `SocketAddr`, socket handles, borrowed
 parser slices, or `ProtocolState`.
 
-The current session is synchronous and should have one owner. A subsequent
-lifecycle milestone will introduce the background worker, command queue,
-event stream, bounded overload behavior, and explicit shutdown semantics.
+The synchronous `ApplicationSession` remains the deterministic per-datagram
+state processor. `ApplicationService` now places it and the UDP transport
+behind one worker thread, exposing bounded commands, a bounded best-effort
+event stream, independent snapshots, and explicit shutdown. See
+[Application session worker](application-session-worker.md).

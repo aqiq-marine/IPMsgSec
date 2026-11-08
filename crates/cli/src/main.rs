@@ -2,15 +2,9 @@ use std::env;
 use std::net::SocketAddr;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
-use ipmsgsec_app::{
-    AppEvent, ApplicationSession, PeerIdentityDto, PeerInfo, TextDecodeFailure,
-    encode_message_for_peer,
-};
-use ipmsgsec_transport_udp::{
-    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
-};
+use ipmsgsec_app::{AppEvent, PeerIdentityDto, PeerInfo, TextDecodeFailure};
 
 const DEFAULT_DURATION_SECS: u64 = 30;
 const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(200);
@@ -144,29 +138,6 @@ where
     })
 }
 
-struct PacketNumbers {
-    next: u64,
-}
-
-impl PacketNumbers {
-    fn from_system_clock() -> Result<Self, String> {
-        let elapsed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| format!("system clock is before UNIX epoch: {error}"))?;
-        let seed = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX.saturating_sub(1));
-        Ok(Self { next: seed })
-    }
-
-    fn take(&mut self) -> Result<u64, String> {
-        let value = self.next;
-        self.next = self
-            .next
-            .checked_add(1)
-            .ok_or_else(|| "packet-number space exhausted".to_owned())?;
-        Ok(value)
-    }
-}
-
 fn display_peers(peers: &[PeerInfo]) {
     println!("Peers ({}):", peers.len());
     for peer in peers {
@@ -210,30 +181,17 @@ fn display_message(
 }
 
 fn run(config: Config) -> Result<(), String> {
-    let mut transport = UdpTransport::bind(config.bind)
-        .map_err(|error| format!("cannot bind {}: {error}", config.bind))?;
-    transport
-        .set_broadcast(true)
-        .map_err(|error| format!("cannot enable IPv4 broadcast: {error}"))?;
-    transport
-        .set_read_timeout(Some(RECEIVE_POLL_INTERVAL))
-        .map_err(|error| format!("cannot set receive timeout: {error}"))?;
-
-    let mut packet_numbers = PacketNumbers::from_system_clock()?;
-    let entry_number = packet_numbers.take()?;
-    let entry = encode_broadcast_entry(
-        entry_number,
-        config.username.as_bytes(),
-        config.hostname.as_bytes(),
-    )
-    .map_err(|error| format!("cannot encode BR_ENTRY: {error}"))?;
-
-    for target in &config.announce_to {
-        transport
-            .send_to(*target, &entry)
-            .map_err(|error| format!("cannot send BR_ENTRY to {target}: {error}"))?;
-        println!("Sent BR_ENTRY to {target}");
-    }
+    let mut app_config = ipmsgsec_app::ApplicationConfig::new(
+        config.bind,
+        config.announce_to.clone(),
+        config.username.as_bytes().to_vec(),
+        config.hostname.as_bytes().to_vec(),
+    );
+    app_config.command_queue_capacity = 64;
+    app_config.event_queue_capacity = 128;
+    let service = ipmsgsec_app::ApplicationService::start(app_config)
+        .map_err(|error| format!("cannot start application session: {error}"))?;
+    let handle = service.handle();
 
     let mut pending_send_to = config.send_to.clone();
     if !pending_send_to.is_empty() {
@@ -249,106 +207,81 @@ fn run(config: Config) -> Result<(), String> {
 
     println!(
         "Listening on {} for {} seconds (Ctrl+C terminates without a guaranteed BR_EXIT).",
-        transport.local_addr().map_err(|e| e.to_string())?,
+        service.local_address(),
         config.duration.as_secs()
     );
 
     let started = Instant::now();
-    let mut session = ApplicationSession::new();
-    let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
-
     while started.elapsed() < config.duration {
-        let received = match transport.recv_from(&mut buffer) {
-            Ok(datagram) => datagram,
-            Err(ipmsgsec_transport_udp::ReceiveError::Io(error))
-                if error.kind() == std::io::ErrorKind::WouldBlock
-                    || error.kind() == std::io::ErrorKind::TimedOut =>
-            {
-                continue;
+        let remaining = config.duration.saturating_sub(started.elapsed());
+        match service.recv_event_timeout(remaining.min(RECEIVE_POLL_INTERVAL)) {
+            Ok(ipmsgsec_app::SessionEvent::Started { local_address }) => {
+                println!("Session started on {local_address}");
             }
-            Err(error) => {
-                eprintln!("receive error: {error}");
-                continue;
-            }
-        };
-
-        let observed_at = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        let update = match session.handle_datagram(&received, observed_at) {
-            Ok(update) => update,
-            Err(error) => {
-                eprintln!(
-                    "ignored malformed/unsupported datagram from {}: {error}",
-                    received.source()
-                );
-                continue;
-            }
-        };
-
-        if let AppEvent::MessageReceived {
-            sender,
-            body,
-            encoding,
-            decoded_text,
-            decode_error,
-        } = &update.event
-        {
-            display_message(
-                sender,
-                received.source(),
-                body,
-                *encoding,
-                decoded_text.as_deref(),
-                *decode_error,
-            );
-        }
-
-        if let AppEvent::PeerJoined { peer, .. } = &update.event
-            && let Some(index) = pending_send_to
-                .iter()
-                .position(|target| *target == received.source())
-            && let Some(body) = &config.message
-        {
-            let target = pending_send_to.remove(index);
-            let packet_number = packet_numbers.take()?;
-            match encode_message_for_peer(
-                packet_number,
-                config.username.as_bytes(),
-                config.hostname.as_bytes(),
-                body,
-                peer.supports_utf8,
-            ) {
-                Ok(encoded) => match transport.send_to(target, &encoded.bytes) {
-                    Ok(_) => println!("Sent SENDMSG to {target} using {:?}", encoded.encoding),
-                    Err(error) => eprintln!("could not send SENDMSG to {target}: {error}"),
-                },
-                Err(error) => eprintln!("cannot encode message for {target}: {error}"),
-            }
-        }
-
-        if let Some(action) = update.response_action {
-            let packet_number = packet_numbers.take()?;
-            if let Err(error) = transport.send_action(
-                &received,
-                action,
-                packet_number,
-                config.username.as_bytes(),
-                config.hostname.as_bytes(),
-            ) {
-                eprintln!("could not send ANSENTRY to {}: {error}", received.source());
-            }
-        }
-
-        if update.peers_changed {
-            match &update.event {
-                AppEvent::PeerJoined { .. } => {
-                    println!("Peer joined from {}", received.source())
+            Ok(ipmsgsec_app::SessionEvent::Protocol { source, event }) => match event {
+                AppEvent::MessageReceived {
+                    sender,
+                    body,
+                    encoding,
+                    decoded_text,
+                    decode_error,
+                } => display_message(
+                    &sender,
+                    source,
+                    &body,
+                    encoding,
+                    decoded_text.as_deref(),
+                    decode_error,
+                ),
+                AppEvent::PeerJoined { change, .. } => {
+                    println!("Peer joined from {source} ({change:?})");
+                    if let Some(index) = pending_send_to.iter().position(|target| *target == source)
+                    {
+                        let target = pending_send_to.remove(index);
+                        if let Some(body) = &config.message {
+                            match handle.send_message(target, body.clone()) {
+                                Ok(encoding) => {
+                                    println!("Sent SENDMSG to {target} using {encoding:?}")
+                                }
+                                Err(error) => {
+                                    eprintln!("could not send SENDMSG to {target}: {error}")
+                                }
+                            }
+                        }
+                    }
+                    if let Ok(snapshot) = service.snapshot() {
+                        let peers: Vec<_> = snapshot
+                            .peers
+                            .into_iter()
+                            .map(|endpoint| endpoint.peer)
+                            .collect();
+                        display_peers(&peers);
+                    }
                 }
-                AppEvent::PeerDeparted { .. } => {
-                    println!("Peer departed from {}", received.source())
+                AppEvent::PeerDeparted { change, .. } => {
+                    println!("Peer departed from {source} ({change:?})");
+                    if let Ok(snapshot) = service.snapshot() {
+                        let peers: Vec<_> = snapshot
+                            .peers
+                            .into_iter()
+                            .map(|endpoint| endpoint.peer)
+                            .collect();
+                        display_peers(&peers);
+                    }
                 }
-                AppEvent::MessageReceived { .. } => unreachable!("messages do not change peers"),
+            },
+            Ok(ipmsgsec_app::SessionEvent::MessageSubmitted { .. }) => {}
+            Ok(ipmsgsec_app::SessionEvent::TransportError { message }) => {
+                eprintln!("transport/application error: {message}");
             }
-            display_peers(&session.peers());
+            Ok(ipmsgsec_app::SessionEvent::EventsDropped { count }) => {
+                eprintln!("warning: application event queue dropped {count} event(s)");
+            }
+            Ok(ipmsgsec_app::SessionEvent::Stopped) => break,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("application event stream disconnected".to_owned());
+            }
         }
     }
 
@@ -363,20 +296,9 @@ fn run(config: Config) -> Result<(), String> {
         );
     }
 
-    let exit_number = packet_numbers.take()?;
-    let exit = encode_broadcast_exit(
-        exit_number,
-        config.username.as_bytes(),
-        config.hostname.as_bytes(),
-    )
-    .map_err(|error| format!("cannot encode BR_EXIT: {error}"))?;
-    for target in &config.announce_to {
-        if let Err(error) = transport.send_to(*target, &exit) {
-            eprintln!("could not send BR_EXIT to {target}: {error}");
-        } else {
-            println!("Sent BR_EXIT to {target}");
-        }
-    }
+    service
+        .shutdown()
+        .map_err(|error| format!("application session shutdown failed: {error}"))?;
     Ok(())
 }
 

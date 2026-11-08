@@ -154,15 +154,17 @@ Acceptance: Rust tests, formatting, Clippy, and Verus CI passed on the implement
 
 Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on PR #8 (run [42456163187](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42456163187)). The protocol-core proof boundary is unchanged; the application crate itself remains unverified.
 
-### Implementation PR 8 — Session lifecycle and event distribution
+### Implementation PR 8 — Session lifecycle and event distribution (implemented; CI passed)
 
-- Give one background worker/actor sole ownership of the mutable protocol session and UDP transport.
-- Define commands such as start, stop, discover, and send-message, plus events such as peer joined/updated/departed, message received, and transport error.
-- Define bounded queues, shutdown behavior, and error propagation.
-- Initially wrap the existing synchronous socket implementation with a worker thread and channels unless implementation evidence justifies adopting an async runtime.
-- Ensure snapshots can be queried separately from event notifications.
+- [x] Give one worker thread sole ownership of the UDP transport, application session, packet-number allocator, and observed peer endpoint map.
+- [x] Define bounded commands for discovery, message submission, and snapshots, with explicit full-queue errors.
+- [x] Define lifecycle, protocol, send-result, transport-error, and event-overflow notifications.
+- [x] Keep event delivery bounded and non-blocking; report dropped-event counts and provide snapshots for peer-state resynchronization.
+- [x] Implement graceful shutdown that sends BR_EXIT, releases the socket, and joins the worker; Drop also performs best-effort shutdown.
+- [x] Keep the synchronous UDP implementation and standard channels; no async runtime added.
+- [x] Refactor the CLI to use ApplicationService rather than owning UdpTransport or ProtocolState.
 
-Acceptance: lifecycle and event ordering are tested; shutdown does not leave a worker or socket running; queue limits and overload behavior are explicit.
+Acceptance: Rust tests (80 passed), CLI subprocess integration tests, formatting, Clippy, and the unchanged protocol-core Verus target passed on PR #9 (run [42457026720](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42457026720)). Worker and application code remain unverified.
 
 ### Implementation PR 9 — Tauri 2 GUI MVP
 
