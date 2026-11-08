@@ -336,7 +336,10 @@ mod tests {
             if end >= b"1:100:alice:workstation:32:".len() {
                 // Once all five header delimiters exist, any body prefix is valid.
                 let packet = parse(&valid[..end]).unwrap();
-                assert_eq!(packet.additional_data, &valid[b"1:100:alice:workstation:32:".len()..end]);
+                assert_eq!(
+                    packet.additional_data,
+                    &valid[b"1:100:alice:workstation:32:".len()..end]
+                );
             } else {
                 assert!(parse(&valid[..end]).is_err(), "prefix length {end}");
             }
