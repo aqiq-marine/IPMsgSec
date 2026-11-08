@@ -24,10 +24,15 @@ struct Config {
 }
 
 fn usage() -> &'static str {
-    "Usage: ipmsgsec-cli --bind <IPv4:port> --announce-to <IPv4:port>... \\\
-     --username <ASCII-name> --hostname <ASCII-host> [--duration-secs <seconds>]\n\n\\     Example (LAN broadcast):\n\\       ipmsgsec-cli --bind 0.0.0.0:2425 --announce-to 255.255.255.255:2425 \\\
-         --username alice --hostname workstation\n\n\\     Each --announce-to may be repeated. For same-host tests, bind each instance \\\
-     to a different 127.0.0.1 port and announce to the other instances' addresses."
+    r#"Usage: ipmsgsec-cli --bind <IPv4:port> --announce-to <IPv4:port>...
+       --username <ASCII-name> --hostname <ASCII-host> [--duration-secs <seconds>]
+
+Example (LAN broadcast):
+  ipmsgsec-cli --bind 0.0.0.0:2425 --announce-to 255.255.255.255:2425 \
+    --username alice --hostname workstation
+
+Each --announce-to may be repeated. For same-host tests, bind each instance
+to a different 127.0.0.1 port and announce to the other instances' addresses."#
 }
 
 fn parse_config<I>(args: I) -> Result<Config, String>
@@ -42,6 +47,9 @@ where
     let mut duration_secs = DEFAULT_DURATION_SECS;
 
     while let Some(flag) = args.next() {
+        if flag == "--help" || flag == "-h" {
+            return Err(usage().to_owned());
+        }
         let value = args
             .next()
             .ok_or_else(|| format!("missing value for {flag}\n{}", usage()))?;
@@ -65,7 +73,6 @@ where
                     return Err("--duration-secs must be greater than zero".to_owned());
                 }
             }
-            "--help" | "-h" => return Err(usage().to_owned()),
             _ => return Err(format!("unknown argument: {flag}\n{}", usage())),
         }
     }
