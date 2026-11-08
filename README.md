@@ -135,4 +135,4 @@ The initial workspace and verification smoke test are now present. See:
 - [Runtime packet parser](crates/protocol-core/src/parser.rs)
 - [CI workflow](.github/workflows/ci.yml)
 
-The smoke proof checks bounded offset arithmetic only. The runtime datagram type currently enforces the MVP packet-size limit; no packet parser or end-to-end security theorem is claimed yet.
+The smoke proof checks bounded offset arithmetic only. The runtime parser has unit tests, but its Verus proof and the CI run for the current revision are still pending. No end-to-end security theorem is claimed.
