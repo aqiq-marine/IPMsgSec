@@ -201,7 +201,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
             state.peers.len() - index,
     {
         let copied = copy_peer(&state.peers[index]);
-        assert(copied == state.peers[index]);
+        assert(copied == state.peers@[index as int]);
         peers.push(copied);
         assert(
             state.peers@.take(index as int + 1)
