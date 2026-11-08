@@ -169,3 +169,16 @@ serializable peer/message/status/error DTOs and centralizes event processing
 and message-encoding selection. The current session is synchronous and
 single-owner; the background worker and command/event lifecycle are the next
 milestone. See [Shared application layer](docs/application-layer.md).
+
+
+## Desktop application
+
+A Windows-first Tauri 2 desktop shell is being introduced under
+`apps/desktop`. The selected lifecycle is to show the main window on startup,
+hide it (without stopping the process/session) when the window is closed, and
+keep the application available from the system tray. An explicit tray Quit
+action will perform graceful session shutdown once the application worker is
+integrated. The initial shell is not yet connected to network messaging.
+
+See [desktop architecture](docs/desktop-architecture.md) and
+[ADR 0010](docs/adr/0010-tauri-desktop-and-tray-lifecycle.md).
