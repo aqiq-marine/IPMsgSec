@@ -374,6 +374,7 @@ mod tests {
         );
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
     }
+
     #[test]
     fn broadcast_absence_updates_presence_without_sending_a_reply() {
         let state = ProtocolState::empty();
