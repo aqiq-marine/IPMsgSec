@@ -222,12 +222,7 @@ mod tests {
             Err(ProtocolError::InconsistentPacket)
         );
 
-        let mut parsed = packet(
-            b"alice",
-            b"workstation",
-            CommandKind::BroadcastEntry,
-            b"",
-        );
+        let mut parsed = packet(b"alice", b"workstation", CommandKind::BroadcastEntry, b"");
         parsed.option_flags = 0x0100_0000;
         assert_eq!(
             classify_packet(&parsed),
@@ -270,7 +265,10 @@ mod tests {
         );
 
         let parsed = packet(b"alice", &oversized, CommandKind::BroadcastEntry, b"");
-        assert_eq!(classify_packet(&parsed), Err(ProtocolError::InvalidIdentity));
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::InvalidIdentity)
+        );
     }
 
     #[test]
