@@ -4,10 +4,12 @@
 //! after the fifth delimiter is opaque command-specific data; in particular,
 //! colons in a message body are preserved.
 
-use crate::MAX_PACKET_SIZE;
 use vstd::prelude::*;
 
 verus! {
+
+/// Application-level maximum datagram size (8 KiB).
+pub const MAX_PACKET_SIZE: usize = 8 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommandKind {
@@ -331,10 +333,10 @@ mod tests {
     fn rejects_every_truncated_prefix_of_a_valid_packet() {
         let valid = b"1:100:alice:workstation:32:hello";
         for end in 0..valid.len() {
-            if end == b"1:100:alice:workstation:32:".len() {
-                // An empty body is valid once all five header delimiters exist.
+            if end >= b"1:100:alice:workstation:32:".len() {
+                // Once all five header delimiters exist, any body prefix is valid.
                 let packet = parse(&valid[..end]).unwrap();
-                assert!(packet.additional_data.is_empty());
+                assert_eq!(packet.additional_data, &valid[b"1:100:alice:workstation:32:".len()..end]);
             } else {
                 assert!(parse(&valid[..end]).is_err(), "prefix length {end}");
             }
