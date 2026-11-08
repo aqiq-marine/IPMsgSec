@@ -1,18 +1,17 @@
-name: Build
+name: Build installers
 
 on:
   workflow_dispatch:
     inputs:
-      target:
-        description: Build target
+      bundles:
+        description: Installer formats to generate
         type: choice
         required: true
         default: all
         options:
           - all
-          - rust
-          - desktop-frontend
-          - desktop-windows
+          - nsis
+          - msi
 
 permissions:
   contents: read
@@ -21,58 +20,52 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust:
-    name: Rust workspace build
-    if: inputs.target == 'all' || inputs.target == 'rust'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install pinned Rust toolchain
-        run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup default 1.99.1
-      - name: Build workspace
-        run: cargo build --workspace --all-targets
-
-  desktop-frontend:
-    name: Desktop frontend build
-    if: inputs.target == 'all' || inputs.target == 'desktop-frontend'
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: apps/desktop
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
-      - name: Install frontend dependencies
-        run: npm ci
-      - name: Build frontend
-        run: npm run build
-
-  desktop-windows:
-    name: Windows Tauri build check
-    if: inputs.target == 'all' || inputs.target == 'desktop-windows'
+  windows-installers:
+    name: Windows installers (x64)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      - name: Build frontend for Tauri context generation
-        working-directory: apps/desktop
-        run: |
-          npm ci
-          npm run build
+
       - name: Install pinned Rust toolchain
         shell: pwsh
         run: |
           rustup toolchain install 1.99.1 --profile minimal
           rustup default 1.99.1
-      - name: Check Tauri desktop crate
-        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Build Tauri installers
+        working-directory: apps/desktop
+        env:
+          BUNDLE_FORMATS: ${{ inputs.bundles }}
+        shell: pwsh
+        run: |
+          $bundles = if ($env:BUNDLE_FORMATS -eq "all") { "nsis,msi" } else { $env:BUNDLE_FORMATS }
+          npx tauri build --bundles $bundles
+
+      - name: Upload NSIS installer
+        if: inputs.bundles == 'all' || inputs.bundles == 'nsis'
+        uses: actions/upload-artifact@v4
+        with:
+          name: IPMsgSec-windows-x64-nsis
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload MSI installer
+        if: inputs.bundles == 'all' || inputs.bundles == 'msi'
+        uses: actions/upload-artifact@v4
+        with:
+          name: IPMsgSec-windows-x64-msi
+          path: apps/desktop/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+          compression-level: 0
