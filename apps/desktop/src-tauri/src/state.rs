@@ -168,8 +168,9 @@ impl Drop for DesktopState {
         if let Ok(handle) = self.handle.get_mut() {
             handle.take();
         }
-        if let Ok(service) = self.service.get_mut()
-            && let Some(service) = service.take()
+        if let Some(service_mutex) = Arc::get_mut(&mut self.service)
+            && let Ok(service_slot) = service_mutex.get_mut()
+            && let Some(service) = service_slot.take()
         {
             let _ = service.shutdown();
         }
