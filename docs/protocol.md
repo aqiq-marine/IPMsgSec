@@ -62,6 +62,9 @@ The initial runtime parser is in `crates/protocol-core/src/parser.rs`. It curren
 - Splits command into low 8-bit command ID and upper 24-bit option flags.
 - Preserves unknown command IDs as `CommandKind::Unsupported` rather than mapping them to a supported command.
 - Returns borrowed byte slices; it does not perform lossy UTF-8 conversion or allocate packet-controlled buffers.
+- The Verus contract for delimiter search states that the returned delimiter is the first delimiter in the suffix.
+- The Verus contract for decimal parsing states that successful parsing implies all bytes are ASCII decimal digits.
+- The parser's success contract states the version, identity-field, size, option-bit, and command-ID invariants.
 
 The parser is written inside the Verus `verus!` macro and is a member of the runtime protocol-core crate. This is intended to keep the executable parser and proof target identical; the claim is pending successful CI verification.
 
