@@ -34,6 +34,7 @@ fn usage() -> &'static str {
 
 Example (LAN broadcast and a direct text message):
   ipmsgsec-cli --bind 0.0.0.0:2425 --announce-to 255.255.255.255:2425 \
+    --send-to 192.0.2.20:2425 --message "Hello from IPMsgSec" \
     --username alice --hostname workstation
 
 Each --announce-to may be repeated. For same-host tests, bind each instance
@@ -440,7 +441,7 @@ mod tests {
 
     #[test]
     fn rejects_non_ascii_and_terminal_controls_in_message() {
-        for body in ["こんにちは", "hello\0world", "hello\\u{1b}[31m"] {
+        for body in ["こんにちは", "hello\0world", "hello\u{1b}[31m"] {
             let mut values = args();
             values.extend(
                 ["--send-to", "127.0.0.1:2427", "--message", body]
