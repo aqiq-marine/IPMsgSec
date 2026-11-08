@@ -7,7 +7,7 @@ verus! {
 pub const MAX_PEERS: usize = 64;
 pub const MAX_IDENTITY_BYTES: usize = 64;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Peer {
     username: Vec<u8>,
     hostname: Vec<u8>,
@@ -28,7 +28,7 @@ impl Peer {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct PeerState {
     peers: Vec<Peer>,
 }
@@ -60,25 +60,25 @@ pub enum TransitionOutcome {
     Unchanged,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct TransitionResult {
     pub state: PeerState,
     pub outcome: TransitionOutcome,
 }
 
-pub open spec fn peer_well_formed(peer: &Peer) -> bool {
+open spec fn peer_well_formed(peer: &Peer) -> bool {
     peer.username@.len() > 0
         && peer.username@.len() <= MAX_IDENTITY_BYTES as int
         && peer.hostname@.len() > 0
         && peer.hostname@.len() <= MAX_IDENTITY_BYTES as int
 }
 
-pub open spec fn same_identity(left: &Peer, right: &Peer) -> bool {
+open spec fn same_identity(left: &Peer, right: &Peer) -> bool {
     left.username@ == right.username@
         && left.hostname@ == right.hostname@
 }
 
-pub open spec fn peer_state_well_formed(state: &PeerState) -> bool {
+pub closed spec fn peer_state_well_formed(state: &PeerState) -> bool {
     state.peers@.len() <= MAX_PEERS as int
         && forall|i: int|
             0 <= i < state.peers@.len()
@@ -150,6 +150,66 @@ impl PeerState {
     }
 }
 
+
+/// Copy a bounded byte slice without relying on an unmodelled allocation helper.
+fn copy_bytes(bytes: &[u8]) -> (result: Vec<u8>)
+    ensures
+        result@ == bytes@,
+{
+    let mut result = Vec::new();
+    let mut index: usize = 0;
+    while index < bytes.len()
+        invariant
+            index <= bytes.len(),
+            result@ == bytes@.take(index as int),
+        decreases
+            bytes.len() - index,
+    {
+        result.push(bytes[index]);
+        index += 1;
+    }
+    result
+}
+
+fn copy_peer(peer: &Peer) -> (result: Peer)
+    ensures
+        result.username@ == peer.username@,
+        result.hostname@ == peer.hostname@,
+        result.last_seen == peer.last_seen,
+{
+    Peer {
+        username: copy_bytes(peer.username.as_slice()),
+        hostname: copy_bytes(peer.hostname.as_slice()),
+        last_seen: peer.last_seen,
+    }
+}
+
+fn copy_state(state: &PeerState) -> (result: PeerState)
+    requires
+        peer_state_well_formed(state),
+    ensures
+        result.peers@ == state.peers@,
+        peer_state_well_formed(&result),
+{
+    let mut peers = Vec::new();
+    let mut index: usize = 0;
+    while index < state.peers.len()
+        invariant
+            index <= state.peers.len(),
+            peers@ == state.peers@.take(index as int),
+        decreases
+            state.peers.len() - index,
+    {
+        peers.push(copy_peer(&state.peers[index]));
+        index += 1;
+    }
+    let result = PeerState { peers };
+    reveal(peer_state_well_formed);
+    assert(result.peers@ == state.peers@);
+    assert(peer_state_well_formed(&result));
+    result
+}
+
 /// Apply one discovery event without performing I/O or reading the clock.
 ///
 /// Identity bytes are copied only after their lengths have been validated.
@@ -188,13 +248,15 @@ pub fn apply_event(
         PeerEvent::Joined { username, hostname, observed_at } => {
             match found {
                 Some(index) => {
-                    let mut next = state.clone();
+                    let mut next = copy_state(state);
                     let outcome = if observed_at > next.peers[index].last_seen {
                         next.peers[index].last_seen = observed_at;
                         TransitionOutcome::Refreshed
                     } else {
                         TransitionOutcome::Unchanged
                     };
+                    reveal(peer_state_well_formed);
+                    assert(peer_state_well_formed(&next));
                     Ok(TransitionResult { state: next, outcome })
                 }
                 None => {
@@ -203,10 +265,12 @@ pub fn apply_event(
                     }
                     let mut next = state.clone();
                     next.peers.push(Peer {
-                        username: username.to_vec(),
-                        hostname: hostname.to_vec(),
+                        username: copy_bytes(username),
+                        hostname: copy_bytes(hostname),
                         last_seen: observed_at,
                     });
+                    reveal(peer_state_well_formed);
+                    assert(peer_state_well_formed(&next));
                     Ok(TransitionResult {
                         state: next,
                         outcome: TransitionOutcome::Added,
@@ -219,13 +283,15 @@ pub fn apply_event(
                 Some(index) => {
                     let mut next = state.clone();
                     next.peers.remove(index);
+                    reveal(peer_state_well_formed);
+                    assert(peer_state_well_formed(&next));
                     Ok(TransitionResult {
                         state: next,
                         outcome: TransitionOutcome::Removed,
                     })
                 }
                 None => Ok(TransitionResult {
-                    state: state.clone(),
+                    state: copy_state(state),
                     outcome: TransitionOutcome::Unchanged,
                 }),
             }
