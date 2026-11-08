@@ -46,14 +46,14 @@ pub enum ProtocolError {
     InconsistentPacket,
 }
 
-pub open spec fn peer_identity_well_formed(identity: &PeerIdentity) -> bool {
+pub closed spec fn peer_identity_well_formed(identity: &PeerIdentity) -> bool {
     identity.username@.len() > 0
         && identity.username@.len() <= MAX_IDENTITY_BYTES as int
         && identity.hostname@.len() > 0
         && identity.hostname@.len() <= MAX_IDENTITY_BYTES as int
 }
 
-pub open spec fn protocol_event_well_formed(event: &ProtocolEvent) -> bool {
+pub closed spec fn protocol_event_well_formed(event: &ProtocolEvent) -> bool {
     match event {
         ProtocolEvent::PeerJoined(identity) =>
             peer_identity_well_formed(identity),
@@ -200,7 +200,10 @@ mod tests {
         let parsed = packet(b"alice", b"workstation", CommandKind::SendMessage, body);
         let event = classify_packet(&parsed).unwrap();
         match event {
-            ProtocolEvent::MessageReceived { sender, body: actual } => {
+            ProtocolEvent::MessageReceived {
+                sender,
+                body: actual,
+            } => {
                 assert_eq!(sender.username(), b"alice");
                 assert_eq!(sender.hostname(), b"workstation");
                 assert_eq!(actual, body);
@@ -212,12 +215,7 @@ mod tests {
 
     #[test]
     fn rejects_inconsistent_command_word_and_classification() {
-        let mut parsed = packet(
-            b"alice",
-            b"workstation",
-            CommandKind::BroadcastEntry,
-            b"",
-        );
+        let mut parsed = packet(b"alice", b"workstation", CommandKind::BroadcastEntry, b"");
         parsed.command_word = 32;
         assert_eq!(
             classify_packet(&parsed),
@@ -255,7 +253,10 @@ mod tests {
     fn rejects_empty_identity_components() {
         for (username, hostname) in [(b"".as_slice(), b"pc".as_slice()), (b"alice", b"")] {
             let parsed = packet(username, hostname, CommandKind::BroadcastEntry, b"");
-            assert_eq!(classify_packet(&parsed), Err(ProtocolError::InvalidIdentity));
+            assert_eq!(
+                classify_packet(&parsed),
+                Err(ProtocolError::InvalidIdentity)
+            );
         }
     }
 
@@ -263,7 +264,10 @@ mod tests {
     fn rejects_identity_components_over_peer_table_limit() {
         let oversized = [b'x'; MAX_IDENTITY_BYTES + 1];
         let parsed = packet(&oversized, b"pc", CommandKind::BroadcastEntry, b"");
-        assert_eq!(classify_packet(&parsed), Err(ProtocolError::InvalidIdentity));
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::InvalidIdentity)
+        );
 
         let parsed = packet(b"alice", &oversized, CommandKind::BroadcastEntry, b"");
         assert_eq!(classify_packet(&parsed), Err(ProtocolError::InvalidIdentity));
