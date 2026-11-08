@@ -129,7 +129,7 @@ The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation
 
 The next milestones intentionally complete wire-encoding negotiation before introducing the shared application API. This avoids baking the current ASCII-only limitation into the interfaces shared by the CLI and future GUI. See [ADR 0007](adr/0007-utf8-negotiation-before-app-layer.md).
 
-### Implementation PR 6 — UTF-8 capability negotiation <badge>
+### Implementation PR 6 — UTF-8 capability negotiation (implementation complete; CI pending)
 
 - [x] Verify the command-specific wire semantics of `IPMSG_CAPUTF8OPT` and `IPMSG_UTF8OPT` against the upstream protocol specification.
 - Add bounded peer capability state and parse remote capability advertisements.
