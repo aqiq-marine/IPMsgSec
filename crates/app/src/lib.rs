@@ -511,4 +511,43 @@ mod tests {
             } if text == "こんにちは"
         ));
     }
+    #[test]
+    fn exposes_broadcast_absence_and_utf8_metadata_in_owned_app_event() {
+        let mut transport = UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        transport
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let packet = "1:12:legacy-user:legacy-host:16777476:legacy-nick\\0legacy-group\\0\\nUN:ボブ\\nHN:remote-pc\\nNN:離席中\\nGN:chemistry\\n".as_bytes();
+        sender
+            .send_to(packet, transport.local_addr().unwrap())
+            .unwrap();
+
+        let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
+        let received = transport.recv_from(&mut buffer).unwrap();
+        let mut session = ApplicationSession::new();
+        let update = session.handle_datagram(&received, 200).unwrap();
+
+        match update.event {
+            AppEvent::PeerJoined {
+                peer,
+                kind,
+                nickname,
+                group,
+                ..
+            } => {
+                assert_eq!(kind, PeerJoinKindDto::BroadcastAbsence);
+                assert_eq!(peer.identity.username, "ボブ".as_bytes());
+                assert_eq!(peer.identity.hostname, b"remote-pc");
+                assert!(peer.is_absent);
+                assert!(peer.supports_utf8);
+                assert_eq!(nickname, Some("離席中".as_bytes().to_vec()));
+                assert_eq!(group, Some(b"chemistry".to_vec()));
+            }
+            other => panic!("unexpected app event: {other:?}"),
+        }
+        assert!(update.response_action.is_none());
+        assert!(session.peers()[0].is_absent);
+    }
+
 }
