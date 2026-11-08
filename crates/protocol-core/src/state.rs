@@ -541,7 +541,8 @@ mod tests {
                 observed_at: 20,
                 supports_utf8: true,
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(updated.outcome, TransitionOutcome::Updated);
         assert_eq!(updated.state.peers()[0].first_seen_at(), 10);
