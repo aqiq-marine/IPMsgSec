@@ -233,7 +233,7 @@ fn run(config: Config) -> Result<(), String> {
                     decoded_text.as_deref(),
                     decode_error,
                 ),
-                AppEvent::PeerJoined { peer, change, .. } => {
+                AppEvent::PeerJoined { change, .. } => {
                     println!("Peer joined from {source} ({change:?})");
                     if let Some(index) = pending_send_to.iter().position(|target| *target == source)
                     {
