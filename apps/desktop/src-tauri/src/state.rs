@@ -12,7 +12,7 @@ use ipmsgsec_app::{
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum DesktopSessionEvent {
     Started { local_address: String },
