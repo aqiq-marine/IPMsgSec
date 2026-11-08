@@ -103,7 +103,13 @@ pub fn parse_discovery_data(data: &[u8]) -> Result<DiscoveryData<'_>, DiscoveryD
         None => (if data.is_empty() { None } else { Some(data) }, None, None),
         Some(nul) => {
             let tail = &data[nul + 1..];
-            if let Some(marker) = tail.windows(2).position(|window| window == b"\0\n") {
+            let mut marker = 0;
+            while marker + 1 < tail.len()
+                && !(tail[marker] == 0 && tail[marker + 1] == b'\n')
+            {
+                marker += 1;
+            }
+            if marker + 1 < tail.len() {
                 let group = &tail[..marker];
                 let metadata_start = nul + 1 + marker + 2;
                 (Some(&data[..nul]), Some(group), Some(&data[metadata_start..]))
