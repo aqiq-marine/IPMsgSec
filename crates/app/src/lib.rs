@@ -17,6 +17,12 @@ use ipmsgsec_transport_udp::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod worker;
+pub use worker::{
+    ApplicationConfig, ApplicationHandle, ApplicationService, PeerEndpoint, ServiceError,
+    SessionEvent, SessionSnapshot,
+};
+
 /// A byte-preserving peer identity suitable for crossing an application/UI boundary.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PeerIdentityDto {
