@@ -78,14 +78,38 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
     None
 }
 
+/// Mathematical value of a sequence of ASCII decimal digits.
+pub open spec fn decimal_value(bytes: Seq<u8>) -> int
+    decreases bytes.len()
+{
+    if bytes.len() == 0 {
+        0
+    } else {
+        decimal_value(bytes.take((bytes.len() - 1) as int)) * 10
+            + bytes[(bytes.len() - 1) as int] as int - b'0' as int
+    }
+}
+
+/// Appending one digit extends the decimal value by one base-10 place.
+proof fn decimal_value_push(bytes: Seq<u8>, digit: u8)
+    requires
+        b'0' <= digit <= b'9',
+    ensures
+        decimal_value(bytes.push(digit))
+            == decimal_value(bytes) * 10 + digit as int - b'0' as int,
+{
+    reveal(decimal_value);
+}
+
 /// Parse a non-empty sequence of ASCII decimal digits as u64.
 /// Overflow is detected before multiplication/addition.
 #[allow(clippy::manual_range_contains)]
 fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
     ensures
         match result {
-            Ok(_) =>
-                forall|i: int| 0 <= i < digits.len() as int
+            Ok(value) =>
+                value as int == decimal_value(digits@)
+                && forall|i: int| 0 <= i < digits.len() as int
                     ==> digits@[i] >= b'0' && digits@[i] <= b'9',
             Err(_) => true,
         }
@@ -96,9 +120,13 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
 
     let mut index: usize = 0;
     let mut value: u64 = 0;
+    assert(decimal_value(digits@.take(0)) == 0) by {
+        reveal(decimal_value);
+    };
     while index < digits.len()
         invariant
             index <= digits.len(),
+            value as int == decimal_value(digits@.take(index as int)),
             forall|i: int| 0 <= i < index as int
                 ==> digits@[i] >= b'0' && digits@[i] <= b'9',
         decreases
@@ -114,6 +142,13 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
             return Err(ParseError::NumericOverflow);
         }
 
+        let prefix = digits@.take(index as int);
+        decimal_value_push(prefix, byte);
+        assert(digits@.take(index as int + 1) == prefix.push(byte));
+        assert(
+            decimal_value(digits@.take(index as int + 1))
+                == decimal_value(prefix) * 10 + digit as int
+        );
         value = value * 10 + digit;
         index = index + 1;
     }
