@@ -144,6 +144,8 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
 
         let prefix = digits@.take(index as int);
         proof {
+            assert(digit as int == byte as int - b'0' as int);
+            assert(value as int * 10 + digit as int <= u64::MAX as int);
             decimal_value_push(prefix, byte);
             assert(digits@.take(index as int + 1) == prefix.push(byte));
             assert(
