@@ -27,6 +27,67 @@ pub enum DiscoveryDataError {
     DuplicateField,
 }
 
+
+/// Validate UTF-8 directly over bytes so this parser remains inside Verus'
+/// supported primitive model. This checks overlong encodings, surrogates,
+/// truncated sequences, and code points above U+10FFFF.
+fn is_valid_utf8(bytes: &[u8]) -> bool {
+    let mut i = 0;
+    while i < bytes.len() {
+        let b0 = bytes[i];
+        if b0 <= 0x7f {
+            i += 1;
+        } else if b0 >= 0xc2 && b0 <= 0xdf {
+            if i + 1 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            if b1 < 0x80 || b1 > 0xbf { return false; }
+            i += 2;
+        } else if b0 == 0xe0 {
+            if i + 2 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            if b1 < 0xa0 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf { return false; }
+            i += 3;
+        } else if (b0 >= 0xe1 && b0 <= 0xec) || (b0 >= 0xee && b0 <= 0xef) {
+            if i + 2 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            if b1 < 0x80 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf { return false; }
+            i += 3;
+        } else if b0 == 0xed {
+            if i + 2 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            if b1 < 0x80 || b1 > 0x9f || b2 < 0x80 || b2 > 0xbf { return false; }
+            i += 3;
+        } else if b0 == 0xf0 {
+            if i + 3 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            let b3 = bytes[i + 3];
+            if b1 < 0x90 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf || b3 < 0x80 || b3 > 0xbf { return false; }
+            i += 4;
+        } else if b0 >= 0xf1 && b0 <= 0xf3 {
+            if i + 3 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            let b3 = bytes[i + 3];
+            if b1 < 0x80 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf || b3 < 0x80 || b3 > 0xbf { return false; }
+            i += 4;
+        } else if b0 == 0xf4 {
+            if i + 3 >= bytes.len() { return false; }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            let b3 = bytes[i + 3];
+            if b1 < 0x80 || b1 > 0x8f || b2 < 0x80 || b2 > 0xbf || b3 < 0x80 || b3 > 0xbf { return false; }
+            i += 4;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
 /// Parse the command-specific discovery additional-data area.
 ///
 /// Legacy layout: nickname [NUL group]
@@ -69,20 +130,21 @@ pub fn parse_discovery_data(data: &[u8]) -> Result<DiscoveryData<'_>, DiscoveryD
             if line.is_empty() {
                 continue;
             }
-            let text = core::str::from_utf8(line)
-                .map_err(|_| DiscoveryDataError::InvalidUtf8)?;
-            if let Some(value) = text.strip_prefix("UN:") {
+            if !is_valid_utf8(line) {
+                return Err(DiscoveryDataError::InvalidUtf8);
+            }
+            if line.len() >= 3 && line[0] == b'U' && line[1] == b'N' && line[2] == b':' {
                 if username.is_some() { return Err(DiscoveryDataError::DuplicateField); }
-                username = Some(value.as_bytes());
-            } else if let Some(value) = text.strip_prefix("HN:") {
+                username = Some(&line[3..]);
+            } else if line.len() >= 3 && line[0] == b'H' && line[1] == b'N' && line[2] == b':' {
                 if hostname.is_some() { return Err(DiscoveryDataError::DuplicateField); }
-                hostname = Some(value.as_bytes());
-            } else if let Some(value) = text.strip_prefix("NN:") {
+                hostname = Some(&line[3..]);
+            } else if line.len() >= 3 && line[0] == b'N' && line[1] == b'N' && line[2] == b':' {
                 if nickname.is_some() { return Err(DiscoveryDataError::DuplicateField); }
-                nickname = Some(value.as_bytes());
-            } else if let Some(value) = text.strip_prefix("GN:") {
+                nickname = Some(&line[3..]);
+            } else if line.len() >= 3 && line[0] == b'G' && line[1] == b'N' && line[2] == b':' {
                 if group.is_some() { return Err(DiscoveryDataError::DuplicateField); }
-                group = Some(value.as_bytes());
+                group = Some(&line[3..]);
             }
         }
     }
