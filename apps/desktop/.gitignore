@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Tauri build artifacts
+src-tauri/target/
+
+# OS
+.DS_Store
+Thumbs.db

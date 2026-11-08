@@ -12,7 +12,7 @@ name = "ipmsgsec_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2" }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 ipmsgsec-app = { path = "../../../crates/app" }
