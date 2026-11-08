@@ -454,7 +454,10 @@ mod tests {
         answer.option_flags = IPMSG_CAPUTF8OPT;
         assert!(matches!(
             classify_packet(&answer),
-            Ok(ProtocolEvent::PeerJoined { supports_utf8: true, .. })
+            Ok(ProtocolEvent::PeerJoined {
+                supports_utf8: true,
+                ..
+            })
         ));
 
         let mut exit = packet(b"alice", b"workstation", CommandKind::BroadcastExit, b"");
