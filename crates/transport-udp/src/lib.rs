@@ -332,7 +332,10 @@ pub fn encode_send_message_with_encoding(
             if had_errors {
                 return Err(EncodeError::UnrepresentableCp932);
             }
-            if text.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
+            if text
+                .chars()
+                .any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
+            {
                 return Err(EncodeError::UnsupportedControl);
             }
         }
