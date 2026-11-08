@@ -338,6 +338,9 @@ mod tests {
                 },
                 kind: PeerJoinKind::AnswerEntry,
                 supports_utf8: false,
+                is_absent: false,
+                nickname: None,
+                group: None,
             })
         );
     }
