@@ -191,6 +191,7 @@ fn copy_peer(peer: &Peer) -> (result: Peer)
         result.username@ == peer.username@,
         result.hostname@ == peer.hostname@,
         result.first_seen_at == peer.first_seen_at,
+        result.supports_utf8 == peer.supports_utf8,
 {
     Peer {
         username: copy_bytes(peer.username.as_slice()),
@@ -208,7 +209,8 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         forall|i: int| 0 <= i < state.peers@.len() ==>
             result.peers@[i].username@ == state.peers@[i].username@
             && result.peers@[i].hostname@ == state.peers@[i].hostname@
-            && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at,
+            && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at
+            && result.peers@[i].supports_utf8 == state.peers@[i].supports_utf8,
         peer_state_well_formed(&result),
 {
     let mut peers: Vec<Peer> = Vec::new();
@@ -220,7 +222,8 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
             forall|j: int| 0 <= j < index as int ==>
                 peers@[j].username@ == state.peers@[j].username@
                 && peers@[j].hostname@ == state.peers@[j].hostname@
-                && peers@[j].first_seen_at == state.peers@[j].first_seen_at,
+                && peers@[j].first_seen_at == state.peers@[j].first_seen_at
+                && peers@[j].supports_utf8 == state.peers@[j].supports_utf8,
         decreases
             state.peers.len() - index,
     {
@@ -235,6 +238,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         result.peers@[i].username@ == state.peers@[i].username@
         && result.peers@[i].hostname@ == state.peers@[i].hostname@
         && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at
+        && result.peers@[i].supports_utf8 == state.peers@[i].supports_utf8
     by {
         assert(i < result.peers@.len());
     }
