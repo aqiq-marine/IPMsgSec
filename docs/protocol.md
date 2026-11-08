@@ -39,7 +39,7 @@ These command values are confirmed in upstream src/ipmsg.h. The implementation a
 3. The new instance records each peer's advertised UTF-8 capability in its bounded peer state.
 4. On shutdown, broadcast IPMSG_BR_EXIT without `IPMSG_CAPUTF8OPT`.
 
-UDP loss is possible. The peer table is an observed peer cache, not authoritative membership. The current state core treats duplicate joins as idempotent no-ops and unknown departures as no-ops. Peer expiration and stale departure/rejoin ordering remain unspecified.
+UDP loss is possible. The peer table is an observed peer cache, not authoritative membership. The peer table keeps one entry per identity. Repeated joins preserve the first-seen timestamp and refresh the advertised capability; unknown departures are no-ops. Peer expiration and stale departure/rejoin ordering remain unspecified.
 
 ## Text messages
 
