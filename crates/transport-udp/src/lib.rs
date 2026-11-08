@@ -266,7 +266,7 @@ pub fn encode_send_message(
         if *byte == 0 {
             return Err(EncodeError::ContainsNul);
         }
-        if !(*byte == b'\\n' || *byte == b'\\t' || (0x20..=0x7e).contains(byte)) {
+        if !(*byte == b'\n' || *byte == b'\\t' || (0x20..=0x7e).contains(byte)) {
             return Err(EncodeError::UnsupportedControl);
         }
     }
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn encodes_ascii_send_message_and_round_trips_through_core() {
-        let bytes = encode_send_message(123, b"alice", b"workstation", b"hello: world\\nnext").unwrap();
+        let bytes = encode_send_message(123, b"alice", b"workstation", b"hello: world\nnext").unwrap();
         let packet = parse_packet(&bytes).unwrap();
         assert_eq!(packet.packet_number, 123);
         assert_eq!(packet.username, b"alice");
@@ -444,11 +444,11 @@ mod tests {
         assert_eq!(packet.command, CommandKind::SendMessage);
         assert_eq!(packet.command_word, 32);
         assert_eq!(packet.option_flags, 0);
-        assert_eq!(packet.additional_data, b"hello: world\\nnext");
+        assert_eq!(packet.additional_data, b"hello: world\nnext");
         assert!(matches!(
             classify_packet(&packet),
             Ok(ProtocolEvent::MessageReceived { body, .. })
-                if body == b"hello: world\\nnext"
+                if body == b"hello: world\nnext"
         ));
     }
 
@@ -472,11 +472,11 @@ mod tests {
     #[test]
     fn rejects_nul_and_terminal_control_bytes_in_message() {
         assert_eq!(
-            encode_send_message(1, b"alice", b"pc", b"hello\\0world"),
+            encode_send_message(1, b"alice", b"pc", b"hello\0world"),
             Err(EncodeError::ContainsNul)
         );
         assert_eq!(
-            encode_send_message(1, b"alice", b"pc", b"hello\\x1b[31m"),
+            encode_send_message(1, b"alice", b"pc", b"hello\x1b[31m"),
             Err(EncodeError::UnsupportedControl)
         );
     }
