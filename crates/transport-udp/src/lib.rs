@@ -614,6 +614,10 @@ mod tests {
             decode_text_body(&[0xff], MessageEncoding::Utf8),
             Err(DecodeError::InvalidUtf8)
         );
+        assert_eq!(
+            decode_text_body(&[0x82], MessageEncoding::Cp932),
+            Err(DecodeError::InvalidCp932)
+        );
     }
 
     #[test]
