@@ -99,7 +99,7 @@ Keep socket I/O, clocks, filesystem operations, and UI outside the verified core
 
 ## Development
 
-The repository is currently at the documentation/design stage. The exact Rust edition, Verus revision, and build commands must be pinned when the initial workspace and CI are added. Do not assume that an arbitrary Verus release is compatible with the current Rust toolchain.
+The initial Rust workspace, bounded datagram type, and a first pure IP Messenger packet parser are present. The parser is written in the runtime crate's Verus `verus!` module and is selected for Cargo-Verus verification. The pinned toolchain and local commands are documented in [docs/toolchain.md](docs/toolchain.md). The parser and proof target are not yet considered verified: wait for a successful CI run on the current commit.
 
 Planned quality gates:
 1. Formatting and linting.
@@ -132,6 +132,7 @@ The initial workspace and verification smoke test are now present. See:
 - [MVP wire protocol subset](docs/protocol.md)
 - [Protocol core crate](crates/protocol-core/)
 - [Verus smoke proof](verification/smoke.rs)
+- [Runtime packet parser](crates/protocol-core/src/parser.rs)
 - [CI workflow](.github/workflows/ci.yml)
 
 The smoke proof checks bounded offset arithmetic only. The runtime datagram type currently enforces the MVP packet-size limit; no packet parser or end-to-end security theorem is claimed yet.
