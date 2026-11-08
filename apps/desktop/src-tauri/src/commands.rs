@@ -1,9 +1,22 @@
 use std::net::SocketAddr;
 
-use ipmsgsec_app::{ApplicationConfig, SessionSnapshot};
+use ipmsgsec_app::{ApplicationConfig, PeerInfo};
+use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::state::DesktopState;
+
+#[derive(Serialize)]
+pub struct DesktopPeerEndpoint {
+    pub address: String,
+    pub peer: PeerInfo,
+}
+
+#[derive(Serialize)]
+pub struct DesktopSessionSnapshot {
+    pub running: bool,
+    pub peers: Vec<DesktopPeerEndpoint>,
+}
 
 #[tauri::command]
 pub fn start_session(
@@ -52,11 +65,22 @@ pub fn discover(state: State<'_, DesktopState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_snapshot(state: State<'_, DesktopState>) -> Result<SessionSnapshot, String> {
-    state
+pub fn get_snapshot(state: State<'_, DesktopState>) -> Result<DesktopSessionSnapshot, String> {
+    let snapshot = state
         .handle()?
         .snapshot()
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    Ok(DesktopSessionSnapshot {
+        running: snapshot.running,
+        peers: snapshot
+            .peers
+            .into_iter()
+            .map(|endpoint| DesktopPeerEndpoint {
+                address: endpoint.address.to_string(),
+                peer: endpoint.peer,
+            })
+            .collect(),
+    })
 }
 
 #[tauri::command]
