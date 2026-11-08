@@ -127,7 +127,7 @@ Not yet specified. Do not assume that this project is licensed for redistributio
 
 ## Initial implementation baseline
 
-The workspace now includes bounded peer discovery and a conservative ASCII-only text-message CLI. The protocol-core parser and state transition modules are selected by CI's Verus target; the UDP adapter and CLI remain unverified. See:
+The workspace now includes bounded peer discovery and a text-message CLI with UTF-8 capability negotiation and CP932 fallback. The protocol-core parser and state transition modules are selected by CI's Verus target; the UDP adapter and CLI remain unverified. See:
 - [Toolchain setup](docs/toolchain.md)
 - [MVP wire protocol subset](docs/protocol.md)
 - [Protocol core crate](crates/protocol-core/)
