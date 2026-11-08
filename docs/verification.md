@@ -26,15 +26,23 @@ fn parse_packet(input: &[u8]) -> Result<Packet, ParseError>
 
 The parser splits exactly the first five ':' delimiters, retains the rest as opaque bytes, parses decimal fields with pre-multiplication overflow checks, and separates the low command byte from the upper option flags. Unknown command IDs remain an explicit `Unsupported` variant.
 
-The current tests cover successful parsing, colons in the body, option flags, unknown commands, truncation, missing delimiters, empty identity fields, malformed numeric fields, overflow, unsupported versions, and empty additional data. These tests are not formal proofs.
+Two helper contracts now state useful local properties:
+- `find_delimiter` returns the first colon at or after the cursor, or proves there is no colon in the remaining suffix.
+- `parse_decimal` returning `Ok` implies every input byte is an ASCII decimal digit. The accumulator checks the u64 overflow condition before multiplication and addition.
+
+The command classifier has a separate logical relation, `command_matches`, connecting each runtime variant to its wire ID. The parser's success postcondition includes non-empty identity fields, the supported version, bounded body length, correct option-bit extraction, and consistency between the command variant and low command byte.
+
+The current test suite contains parser cases for successful parsing, colons in the body, option flags, unknown and maximum command values, truncation, missing delimiters, empty identity fields, malformed numeric fields, overflow, unsupported versions, empty additional data, oversized datagrams, and exhaustive one-/two-byte inputs. These tests are not formal proofs.
 
 Proof obligations:
 1. Every input slice satisfying the maximum-length precondition returns a result.
-2. Every slice access is within bounds.
-3. Arithmetic used for offsets and lengths cannot overflow or wrap into an invalid access.
-4. Successful parsing produces a value satisfying the Packet invariant.
-5. Failed parsing has no side effects.
-6. The parser does not allocate based on an unvalidated packet-supplied length.
+2. The delimiter helper returns the first delimiter, or establishes its absence.
+3. Successful decimal parsing implies all bytes are decimal digits; checked accumulation cannot overflow.
+4. Every slice access is within bounds.
+5. Arithmetic used for offsets and lengths cannot overflow or wrap into an invalid access.
+6. Successful parsing produces a value satisfying the Packet invariant and command-ID relation.
+7. Failed parsing has no side effects.
+8. The parser does not allocate based on an unvalidated packet-supplied length.
 
 Start with simple cursor-based parsing and explicit remaining-length checks. Avoid complex generic parsers until the proof baseline is stable.
 
