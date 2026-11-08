@@ -80,26 +80,11 @@ fn two_instances_discover_each_other_and_process_departure() {
 #[test]
 fn three_instances_discover_the_other_two_peers() {
     let addresses = reserve_addresses(3);
-    let alice = spawn_instance(
-        "alice",
-        addresses[0],
-        &[addresses[1], addresses[2]],
-        3,
-    );
+    let alice = spawn_instance("alice", addresses[0], &[addresses[1], addresses[2]], 3);
     thread::sleep(Duration::from_millis(100));
-    let bob = spawn_instance(
-        "bob",
-        addresses[1],
-        &[addresses[0], addresses[2]],
-        3,
-    );
+    let bob = spawn_instance("bob", addresses[1], &[addresses[0], addresses[2]], 3);
     thread::sleep(Duration::from_millis(100));
-    let carol = spawn_instance(
-        "carol",
-        addresses[2],
-        &[addresses[0], addresses[1]],
-        3,
-    );
+    let carol = spawn_instance("carol", addresses[2], &[addresses[0], addresses[1]], 3);
 
     for (name, output) in [
         ("alice", finish(alice)),
