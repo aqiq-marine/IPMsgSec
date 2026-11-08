@@ -43,12 +43,17 @@ impl<'a> BoundedDatagram<'a> {
     }
 }
 
+pub mod discovery;
 pub mod parser;
 pub mod protocol;
 pub mod state;
 
+pub use discovery::{
+    ActionList, DiscoveryError, DiscoveryTransition, MAX_ACTIONS, ProtocolAction, ProtocolState,
+    ReplyTarget, apply_discovery_event,
+};
 pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
-pub use protocol::{PeerIdentity, ProtocolError, ProtocolEvent, classify_packet};
+pub use protocol::{PeerIdentity, PeerJoinKind, ProtocolError, ProtocolEvent, classify_packet};
 pub use state::{
     MAX_IDENTITY_BYTES, MAX_PEERS, Peer, PeerEvent, PeerState, StateError, TransitionOutcome,
     TransitionResult, apply_event,
