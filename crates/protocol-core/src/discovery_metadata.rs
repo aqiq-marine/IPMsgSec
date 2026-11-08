@@ -35,6 +35,7 @@ pub enum DiscoveryDataError {
 fn is_valid_utf8(bytes: &[u8]) -> bool {
     let mut i = 0;
     while i < bytes.len()
+        invariant i <= bytes.len(),
         decreases bytes.len() - i,
     {
         let b0 = bytes[i];
@@ -46,39 +47,39 @@ fn is_valid_utf8(bytes: &[u8]) -> bool {
             if b1 < 0x80 || b1 > 0xbf { return false; }
             i += 2;
         } else if b0 == 0xe0 {
-            if i + 2 >= bytes.len() { return false; }
+            if bytes.len() - i < 3 { return false; }
             let b1 = bytes[i + 1];
             let b2 = bytes[i + 2];
             if b1 < 0xa0 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf { return false; }
             i += 3;
         } else if (b0 >= 0xe1 && b0 <= 0xec) || (b0 >= 0xee && b0 <= 0xef) {
-            if i + 2 >= bytes.len() { return false; }
+            if bytes.len() - i < 3 { return false; }
             let b1 = bytes[i + 1];
             let b2 = bytes[i + 2];
             if b1 < 0x80 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf { return false; }
             i += 3;
         } else if b0 == 0xed {
-            if i + 2 >= bytes.len() { return false; }
+            if bytes.len() - i < 3 { return false; }
             let b1 = bytes[i + 1];
             let b2 = bytes[i + 2];
             if b1 < 0x80 || b1 > 0x9f || b2 < 0x80 || b2 > 0xbf { return false; }
             i += 3;
         } else if b0 == 0xf0 {
-            if i + 3 >= bytes.len() { return false; }
+            if bytes.len() - i < 4 { return false; }
             let b1 = bytes[i + 1];
             let b2 = bytes[i + 2];
             let b3 = bytes[i + 3];
             if b1 < 0x90 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf || b3 < 0x80 || b3 > 0xbf { return false; }
             i += 4;
         } else if b0 >= 0xf1 && b0 <= 0xf3 {
-            if i + 3 >= bytes.len() { return false; }
+            if bytes.len() - i < 4 { return false; }
             let b1 = bytes[i + 1];
             let b2 = bytes[i + 2];
             let b3 = bytes[i + 3];
             if b1 < 0x80 || b1 > 0xbf || b2 < 0x80 || b2 > 0xbf || b3 < 0x80 || b3 > 0xbf { return false; }
             i += 4;
         } else if b0 == 0xf4 {
-            if i + 3 >= bytes.len() { return false; }
+            if bytes.len() - i < 4 { return false; }
             let b1 = bytes[i + 1];
             let b2 = bytes[i + 2];
             let b3 = bytes[i + 3];
@@ -101,22 +102,36 @@ fn is_valid_utf8(bytes: &[u8]) -> bool {
 /// known keys may occur at most once. The UTF-8 metadata takes precedence over
 /// the legacy header/additional-data values.
 pub fn parse_discovery_data(data: &[u8]) -> Result<DiscoveryData<'_>, DiscoveryDataError> {
-    let first_nul = data.iter().position(|byte| *byte == 0);
+    let mut first_nul: Option<usize> = None;
+    let mut scan: usize = 0;
+    while scan < data.len()
+        invariant scan <= data.len(),
+        decreases data.len() - scan,
+    {
+        if data[scan] == 0 {
+            first_nul = Some(scan);
+            break;
+        }
+        scan += 1;
+    }
     let (legacy_nickname, legacy_group, metadata) = match first_nul {
         None => (if data.is_empty() { None } else { Some(data) }, None, None),
         Some(nul) => {
-            let tail = &data[nul + 1..];
+            assert(nul < data.len());
+            let after_nul = nul + 1;
+            let tail = &data[after_nul..];
             let mut marker = 0;
-            while marker + 1 < tail.len()
-                && !(tail[marker] == 0 && tail[marker + 1] == b'\n')
+            while marker < tail.len()
+                && tail.len() - marker >= 2
+                && !(tail[marker] == 0 && tail[marker + 1] == b'\\n')
+                invariant marker <= tail.len(),
                 decreases tail.len() - marker,
             {
                 marker += 1;
             }
-            if marker + 1 < tail.len() {
+            if tail.len() - marker >= 2 {
                 let group = &tail[..marker];
-                let metadata_start = nul + 1 + marker + 2;
-                (Some(&data[..nul]), Some(group), Some(&data[metadata_start..]))
+                (Some(&data[..nul]), Some(group), Some(&tail[marker + 2..]))
             } else {
                 (Some(&data[..nul]), Some(tail), None)
             }
