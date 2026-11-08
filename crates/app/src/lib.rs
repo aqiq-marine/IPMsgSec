@@ -165,6 +165,37 @@ pub struct SessionUpdate {
     pub peers_changed: bool,
 }
 
+/// Stable, serializable error category for a UI or API boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApplicationErrorKind {
+    Inbound,
+    Discovery,
+    Encode,
+}
+
+/// Owned error DTO; detailed internal error enums stay inside the Rust boundary.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApplicationErrorDto {
+    pub kind: ApplicationErrorKind,
+    pub message: String,
+}
+
+/// Current application-session status. Lifecycle states will be expanded by
+/// the worker/session milestone without changing peer or message DTOs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionStatus {
+    Ready,
+}
+
+/// Owned status snapshot suitable for a frontend.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApplicationStatus {
+    pub status: SessionStatus,
+    pub peer_count: usize,
+}
+
 /// Errors at the application boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ApplicationError {
@@ -184,6 +215,17 @@ impl std::fmt::Display for ApplicationError {
 }
 
 impl std::error::Error for ApplicationError {}
+
+impl ApplicationError {
+    pub fn to_dto(self) -> ApplicationErrorDto {
+        let (kind, message) = match self {
+            Self::Inbound(error) => (ApplicationErrorKind::Inbound, format!("{error:?}")),
+            Self::Discovery(error) => (ApplicationErrorKind::Discovery, format!("{error:?}")),
+            Self::Encode(error) => (ApplicationErrorKind::Encode, error.to_string()),
+        };
+        ApplicationErrorDto { kind, message }
+    }
+}
 
 /// The application-owned view of the current verified protocol state.
 ///
@@ -208,6 +250,13 @@ impl ApplicationSession {
     }
 
     /// Return an owned snapshot; no references into protocol-core escape.
+    pub fn status(&self) -> ApplicationStatus {
+        ApplicationStatus {
+            status: SessionStatus::Ready,
+            peer_count: self.protocol_state.peers().len(),
+        }
+    }
+
     pub fn peers(&self) -> Vec<PeerInfo> {
         self.protocol_state
             .peers()
