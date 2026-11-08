@@ -3,7 +3,7 @@
 //! The transport supplies an opaque reply target for each received datagram.
 //! The verified core never interprets it as an IP address or socket address.
 
-use crate::protocol::{PeerIdentity, PeerJoinKind, ProtocolEvent};
+use crate::protocol::{PeerJoinKind, ProtocolEvent};
 use crate::state::{PeerEvent, PeerState, StateError, TransitionOutcome, apply_event};
 use vstd::prelude::*;
 
@@ -198,6 +198,7 @@ pub fn apply_discovery_event(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::PeerIdentity;
 
     fn identity() -> PeerIdentity<'static> {
         PeerIdentity::new(b"alice", b"workstation").unwrap()
