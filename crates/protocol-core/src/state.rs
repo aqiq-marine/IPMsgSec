@@ -66,14 +66,14 @@ pub struct TransitionResult {
     pub outcome: TransitionOutcome,
 }
 
-open spec fn peer_well_formed(peer: &Peer) -> bool {
+closed spec fn peer_well_formed(peer: &Peer) -> bool {
     peer.username@.len() > 0
         && peer.username@.len() <= MAX_IDENTITY_BYTES as int
         && peer.hostname@.len() > 0
         && peer.hostname@.len() <= MAX_IDENTITY_BYTES as int
 }
 
-open spec fn same_identity(left: &Peer, right: &Peer) -> bool {
+closed spec fn same_identity(left: &Peer, right: &Peer) -> bool {
     left.username@ == right.username@
         && left.hostname@ == right.hostname@
 }
@@ -245,7 +245,11 @@ pub fn apply_event(
     let found = find_peer_index(&state.peers, username, hostname);
 
     match event {
-        PeerEvent::Joined { username, hostname, observed_at } => {
+        PeerEvent::Joined {
+            username,
+            hostname,
+            observed_at,
+        } => {
             match found {
                 Some(index) => {
                     let mut next = copy_state(state);
