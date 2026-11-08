@@ -5,7 +5,6 @@
 //! so callers cannot bypass the limit by passing a raw slice.
 
 /// Application-level maximum datagram size (8 KiB), not the UDP protocol maximum.
-pub const MAX_PACKET_SIZE: usize = 8 * 1024;
 
 /// A datagram that passed the application-level size bound.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,7 +47,7 @@ impl<'a> BoundedDatagram<'a> {
 
 pub mod parser;
 
-pub use parser::{CommandKind, Packet, ParseError, parse_packet};
+pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
 
 #[cfg(test)]
 mod tests {
