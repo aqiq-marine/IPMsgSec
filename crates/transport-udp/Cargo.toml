@@ -1,0 +1,11 @@
+[package]
+name = "ipmsgsec-transport-udp"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+ipmsgsec-protocol-core = { path = "../protocol-core" }
+
+[lints]
+workspace = true
