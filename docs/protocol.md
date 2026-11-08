@@ -54,6 +54,18 @@ The first implementation should prefer UTF-8-capable peers and explicitly negoti
 
 ## Parser requirements
 
+The initial runtime parser is in `crates/protocol-core/src/parser.rs`. It currently:
+- Splits only the first five ':' delimiters; the additional-data tail remains opaque and may contain colons.
+- Parses version, packet number, and command as ASCII decimal numbers, with explicit overflow detection.
+- Accepts protocol version 1 only.
+- Requires non-empty username and hostname fields.
+- Splits command into low 8-bit command ID and upper 24-bit option flags.
+- Preserves unknown command IDs as `CommandKind::Unsupported` rather than mapping them to a supported command.
+- Returns borrowed byte slices; it does not perform lossy UTF-8 conversion or allocate packet-controlled buffers.
+
+The parser is written inside the Verus `verus!` macro and is a member of the runtime protocol-core crate. This is intended to keep the executable parser and proof target identical; the claim is pending successful CI verification.
+
+Additional requirements:
 - Parse from a bounded byte slice; do not first convert the entire datagram using lossy UTF-8 conversion.
 - Find delimiters using checked cursor arithmetic.
 - Validate required header fields before constructing a typed packet.
