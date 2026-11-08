@@ -66,7 +66,7 @@ The initial runtime parser is in `crates/protocol-core/src/parser.rs`. It curren
 - The Verus contract for decimal parsing states that successful parsing implies all bytes are ASCII decimal digits and the returned value equals the mathematical base-10 interpretation of those bytes.
 - The parser's success contract states the version, identity-field, size, option-bit, and command-ID invariants.
 
-The parser is written inside the Verus `verus!` macro and is a member of the runtime protocol-core crate. This is intended to keep the executable parser and proof target identical; the claim is pending successful CI verification.
+The parser is written inside the Verus `verus!` macro and is a member of the runtime protocol-core crate. CI has successfully verified the Cargo-Verus target while compiling the same runtime crate; see [verification evidence](verification.md).
 
 Additional requirements:
 - Parse from a bounded byte slice; do not first convert the entire datagram using lossy UTF-8 conversion.

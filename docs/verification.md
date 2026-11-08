@@ -70,7 +70,7 @@ The state invariant is intended to establish:
 - Every username and hostname is non-empty and at most `MAX_IDENTITY_BYTES`.
 - No two entries have the same byte-exact username/hostname pair.
 
-The transition takes the observation timestamp as an explicit input. It does not read a clock, perform I/O, or mutate the supplied state. Tests cover add, duplicate idempotency, departure, unknown departure, invalid identity, and capacity overflow. The exact Verus proof status is determined by the CI result for the current revision.
+The transition takes the observation timestamp as an explicit input. It does not read a clock, perform I/O, or mutate the supplied state. Tests cover add, duplicate idempotency, departure, unknown departure, invalid identity, and capacity overflow. The transition proof covers bounded peer count, valid identity lengths, uniqueness of byte-exact identities, copy preservation, insertion, and removal. It does not prove expiration, freshness ordering, or network integration.
 
 ## Phase 3 — composition
 
@@ -129,4 +129,17 @@ These techniques find defects but do not replace proofs.
 
 ## Initial executable proof baseline
 
-The repository contains verification/smoke.rs, a standalone checked-offset arithmetic target, and a Cargo-Verus-enabled protocol-core crate. The runtime parser is written inside the crate's verus! module and is selected by the CI command `cargo verus verify -p ipmsgsec-protocol-core`. This design avoids a second proof-only parser. The parser's actual proof status remains pending until that command succeeds on the current source revision.
+The repository contains verification/smoke.rs, a standalone checked-offset arithmetic target, and a Cargo-Verus-enabled protocol-core crate. The runtime parser is written inside the crate's verus! module and is selected by the CI command `cargo verus verify -p ipmsgsec-protocol-core`. This design avoids a second proof-only parser. The current CI evidence is recorded below; parser and state proof targets are both included in the same Cargo-Verus command.
+
+
+## Current CI evidence
+
+For commit `7196eb70a6d3267960403879d0f72309a98f54bc`, [CI run 42449096346](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42449096346) completed successfully:
+
+- Standalone smoke proof: 2 verified, 0 errors.
+- Parser module: 2,159 verified, 0 errors.
+- Peer-state module: 34 verified, 0 errors.
+- Rust tests: 26 passed.
+- Formatting and Clippy: passed.
+
+The peer-state proof covers the state invariant and its preservation by copying, bounded insertion, and removal. This is not a proof of UDP behavior, peer freshness, event ordering, or whole-process security.
