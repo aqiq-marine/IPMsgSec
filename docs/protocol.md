@@ -39,7 +39,7 @@ The semantic classifier is deliberately fail-closed:
 - A malformed envelope returns a parse error, not an unsupported-feature result.
 - Unsupported or malformed packets must not cause a peer/message state transition.
 
-Opaque command-specific data is handled separately from the common envelope. Discovery additional data is currently preserved and ignored because its extension grammar is not implemented. Message additional data is accepted only for the implemented plain-text form; NUL-separated attachment/extended-message data is rejected as an unsupported message extension. No file, crypto, path, or executable semantics are inferred from opaque bytes.
+Opaque command-specific data is handled separately from the common envelope. BR-family discovery additional data is parsed by a separate bounded command-specific parser for the legacy nickname/group fields and the documented UTF-8 metadata extension. Message additional data is accepted only for the implemented plain-text form; NUL-separated attachment/extended-message data is rejected as an unsupported message extension. No file, crypto, path, or executable semantics are inferred from opaque bytes.
 
 This is a compatibility/security trade-off: unknown data is not mislabeled as malformed, but it is also not acted upon. Future support should add a command-specific bounded parser and tests, then produce a typed event only for the exact semantics implemented. If an extension can safely be ignored without changing the meaning of the supported base operation, that behavior must be documented and tested explicitly; it must not be inferred from the fact that a field is unknown.
 
