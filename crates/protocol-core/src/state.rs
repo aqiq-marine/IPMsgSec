@@ -374,8 +374,8 @@ fn remove_peer_at(state: &PeerState, index: usize) -> (result: PeerState)
 /// Apply one discovery event without performing I/O or reading the clock.
 ///
 /// Identity bytes are copied only after their lengths have been validated.
-/// Repeated joins refresh first_seen_at monotonically; stale timestamps cannot
-/// move it backwards. Departures for unknown peers are harmless no-ops.
+/// Repeated joins are idempotent no-ops and preserve the original
+/// first_seen_at timestamp. Departures for unknown peers are harmless no-ops.
 pub fn apply_event(
     state: &PeerState,
     event: PeerEvent<'_>,
