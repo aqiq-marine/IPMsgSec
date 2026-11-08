@@ -200,7 +200,12 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         decreases
             state.peers.len() - index,
     {
-        peers.push(copy_peer(&state.peers[index]));
+        let copied = copy_peer(&state.peers[index]);
+        assert(copied.username@ == state.peers@[index as int].username@);
+        assert(copied.hostname@ == state.peers@[index as int].hostname@);
+        assert(copied.last_seen == state.peers@[index as int].last_seen);
+        peers.push(copied);
+        assert(peers@ == state.peers@.take(index as int + 1));
         index += 1;
     }
     let result = PeerState { peers };
@@ -253,6 +258,7 @@ pub fn apply_event(
             match found {
                 Some(index) => {
                     let mut next = copy_state(state);
+                    assert(next.peers@ == state.peers@);
                     let outcome = if observed_at > next.peers[index].last_seen {
                         next.peers[index].last_seen = observed_at;
                         TransitionOutcome::Refreshed
