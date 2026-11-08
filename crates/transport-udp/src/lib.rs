@@ -482,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_message_that_would_exceed_datagram_limit() {
+    fn rejects_message_over_body_limit_before_datagram_limit() {
         let body = vec![b'a'; MAX_PACKET_SIZE];
         assert_eq!(
             encode_send_message(1, b"alice", b"pc", &body),
