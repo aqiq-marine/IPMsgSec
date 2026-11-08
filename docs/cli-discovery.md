@@ -83,22 +83,24 @@ cargo run -p ipmsgsec-cli -- --bind 0.0.0.0:2425 \
   --username alice --hostname workstation
 ```
 
-The CLI sends one unflagged `IPMSG_SENDMSG` packet to each explicit target
-when it starts, then continues listening for the configured duration.
-The receiver displays the sender identity, source address, and byte-escaped
-message body. It does not automatically trust a message sender as a peer,
-and it does not send `IPMSG_RECVMSG` acknowledgements.
+The CLI advertises `IPMSG_CAPUTF8OPT` in BR_ENTRY and ANSENTRY. It waits until
+an explicit `--send-to` endpoint has sent a discovery advertisement before
+sending the queued message to that endpoint. If the peer advertised UTF-8
+capability, the CLI sends UTF-8 with `IPMSG_UTF8OPT`; otherwise it encodes the
+message as CP932 and leaves that flag clear. It never assumes UTF-8 support
+from an unknown peer.
 
-Outbound bodies are restricted to non-empty ASCII, at most 4096 bytes.
-Printable ASCII, TAB, and LF are accepted; NUL and other control bytes are
-rejected. The receiver also rejects empty bodies, bodies over 4096 bytes,
-NUL-separated extension payloads, and SENDMSG packets with option flags.
-This avoids guessing between CP932 and UTF-8 because ASCII has the same
-representation in both. Non-ASCII messages, UTF-8 capability
-advertisement/negotiation, CP932 conversion, acknowledgements, retries, and
-attachment extensions remain future work. Incoming bytes are not decoded as
-UTF-8: they are escaped for terminal-safe display, so non-ASCII text may not
-be human-readable yet.
+Outbound text must be non-empty and encodable in the selected encoding within
+the 4096-byte encoded-body limit. TAB and LF are allowed; NUL and other
+control characters are rejected. A message that cannot be represented in
+CP932 is not sent to a peer without UTF-8 capability. The receiver selects
+its decoder from `IPMSG_UTF8OPT` and reports malformed data instead of
+silently falling back to another encoding. Decoding failures display the raw
+bytes as hexadecimal; successfully decoded text is escaped for terminal-safe
+display. The receiver also rejects empty bodies, bodies over 4096 bytes,
+NUL-separated extension payloads, and SENDMSG flags other than
+`IPMSG_UTF8OPT`. Acknowledgements, retries, and attachment extensions remain
+future work.
 
 The message target is an explicit socket address, not a peer-table selection.
 The current peer table stores identities but not authenticated network
@@ -106,7 +108,8 @@ endpoints; source IP addresses are unauthenticated UDP metadata.
 
 ## Packet handling
 
-- Startup sends `1:<packet-number>:<username>:<hostname>:1:` (BR_ENTRY).
+- Startup sends BR_ENTRY with `IPMSG_CAPUTF8OPT` in its command word.
+- ANSENTRY responses also advertise `IPMSG_CAPUTF8OPT`; BR_EXIT does not.
 - A received BR_ENTRY is classified by protocol-core, applied through
   `apply_discovery_event`, and answered with ANSENTRY to the exact source
   address paired with that datagram.
@@ -140,8 +143,10 @@ a shared IPv4 LAN:
 3. Stop the CLI by normal timeout; confirm Windows removes it after BR_EXIT.
 4. Repeat with Windows firewall enabled and document the required inbound UDP
    rule if any.
-5. Capture UDP packets and compare command numbers, packet numbers, identity
-   bytes, source/destination addresses, and ports with the expected wire form.
+5. Capture UDP packets and compare command numbers, capability/encoding flags,
+   packet numbers, identity bytes, source/destination addresses, and ports.
+6. Verify Unicode message delivery in both directions and verify CP932 fallback
+   against a legacy client that does not advertise `IPMSG_CAPUTF8OPT`.
 
 No external-client run or packet capture is included in this change. Until the
 matrix is completed, compatibility with Windows IP Messenger 5.9.1 is a
