@@ -5,10 +5,11 @@ use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_protocol_core::{
-    ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
+    MAX_MESSAGE_BODY_BYTES, ProtocolEvent, ProtocolState, TransitionOutcome,
+    apply_discovery_event,
 };
 use ipmsgsec_transport_udp::{
-    MAX_MESSAGE_BODY_BYTES, RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry,
+    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry,
     encode_broadcast_exit, encode_send_message,
 };
 
