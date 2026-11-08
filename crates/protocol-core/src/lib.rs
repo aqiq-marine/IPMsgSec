@@ -53,6 +53,7 @@ pub use discovery::{
     ActionList, DiscoveryError, DiscoveryTransition, MAX_ACTIONS, ProtocolAction, ProtocolState,
     ReplyTarget, apply_discovery_event,
 };
+pub use discovery_metadata::{DiscoveryData, DiscoveryDataError, parse_discovery_data};
 pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
 pub use protocol::{
     IPMSG_ABSENCEOPT, IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_MESSAGE_BODY_BYTES, MessageEncoding, PeerIdentity,
