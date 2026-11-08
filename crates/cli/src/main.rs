@@ -314,10 +314,10 @@ fn run(config: Config) -> Result<(), String> {
         {
             let target = pending_send_to.remove(index);
             let encoding = if supports_utf8 {
-                    MessageEncoding::Utf8
-                } else {
-                    MessageEncoding::Cp932
-                };
+                MessageEncoding::Utf8
+            } else {
+                MessageEncoding::Cp932
+            };
             match encode_text_body(body, encoding) {
                 Ok(encoded_body) => {
                     let packet_number = packet_numbers.take()?;
