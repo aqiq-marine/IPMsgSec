@@ -91,8 +91,10 @@ and it does not send `IPMSG_RECVMSG` acknowledgements.
 
 Outbound bodies are restricted to non-empty ASCII, at most 4096 bytes.
 Printable ASCII, TAB, and LF are accepted; NUL and other control bytes are
-rejected. This avoids guessing between CP932 and UTF-8 because ASCII has the
-same representation in both. Non-ASCII messages, UTF-8 capability
+rejected. The receiver also rejects empty bodies, bodies over 4096 bytes,
+NUL-separated extension payloads, and SENDMSG packets with option flags.
+This avoids guessing between CP932 and UTF-8 because ASCII has the same
+representation in both. Non-ASCII messages, UTF-8 capability
 advertisement/negotiation, CP932 conversion, acknowledgements, retries, and
 attachment extensions remain future work. Incoming bytes are not decoded as
 UTF-8: they are escaped for terminal-safe display, so non-ASCII text may not
