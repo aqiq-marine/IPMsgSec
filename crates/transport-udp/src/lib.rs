@@ -579,6 +579,26 @@ mod tests {
     }
 
     #[test]
+    fn encodes_and_decodes_legacy_cp932_without_utf8_option() {
+        let text = "こんにちは";
+        let body = encode_text_body(text, MessageEncoding::Cp932).unwrap();
+        let bytes = encode_send_message_with_encoding(
+            125,
+            b"alice",
+            b"workstation",
+            &body,
+            MessageEncoding::Cp932,
+        ).unwrap();
+        let packet = parse_packet(&bytes).unwrap();
+        assert_eq!(packet.command_word, 32);
+        assert_eq!(packet.option_flags, 0);
+        assert_eq!(
+            decode_text_body(packet.additional_data, MessageEncoding::Cp932).unwrap(),
+            text
+        );
+    }
+
+    #[test]
     fn legacy_encoder_rejects_unrepresentable_text_and_decoder_is_strict() {
         assert_eq!(
             encode_text_body("emoji 😀", MessageEncoding::Cp932),
