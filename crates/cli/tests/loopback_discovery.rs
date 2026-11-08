@@ -56,7 +56,7 @@ fn finish(child: Child) -> String {
 #[test]
 fn two_instances_discover_each_other_and_process_departure() {
     let addresses = reserve_addresses(2);
-    let mut alice = spawn_instance("alice", addresses[0], &[addresses[1]], 2);
+    let alice = spawn_instance("alice", addresses[0], &[addresses[1]], 2);
     thread::sleep(Duration::from_millis(150));
     let bob = spawn_instance("bob", addresses[1], &[addresses[0]], 4);
 
