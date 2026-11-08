@@ -618,6 +618,7 @@ mod tests {
         );
         assert_eq!(state.len(), MAX_PEERS);
     }
+
     #[test]
     fn duplicate_join_updates_absence_status_without_resetting_first_seen() {
         let state = PeerState::empty();
