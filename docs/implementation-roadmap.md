@@ -83,17 +83,19 @@ The initial action list has capacity one by construction. `ReplyTarget` is an ad
 
 ### PR 3 — UDP transport adapter
 
-Add a separate `transport-udp` crate or module.
+Add the unverified `transport-udp` crate.
 
-- Bind sockets and receive datagrams outside the verified core.
-- Enforce the application packet-size bound before parsing.
-- Handle truncation explicitly; do not assume a normal `recv_from` buffer necessarily reports that a datagram was truncated.
-- Preserve the datagram source address for directed replies.
-- Translate abstract protocol actions into UDP sends.
-- Separate socket errors from parse and protocol errors.
-- Decide and document interface binding and limited-vs-directed broadcast behavior before claiming broad LAN discovery support.
+- Bind sockets only at an explicit caller-supplied address; do not silently select an interface.
+- Receive into `MAX_PACKET_SIZE + 1` bytes. A full sentinel byte proves the datagram exceeded the 8 KiB application limit even when the standard socket API does not expose a truncation flag.
+- Preserve the source `SocketAddr` and pair it with an opaque per-receive `ReplyTarget` token.
+- Delegate parsing and classification to `protocol-core`; the adapter must not parse command fields independently.
+- Translate `SendAnswerEntry` into a directed UDP response to the source associated with the same received datagram.
+- Keep socket I/O errors, oversized datagrams, parser errors, protocol errors, and response-encoding errors distinct.
+- Encode identity bytes verbatim without assuming UTF-8; reject `:` in local identity fields because it is the header delimiter.
+- Require the caller to supply the answer packet number. Packet-number generation/collision policy remains unresolved.
+- Keep broadcast destination and interface policy explicit; this PR does not claim general LAN broadcast discovery.
 
-The adapter is unverified unless a separate refinement argument and platform assumptions are supplied.
+The adapter is unverified. The `MAX_PACKET_SIZE + 1` sentinel technique depends on the UDP receive contract returning at least the supplied buffer length when a larger datagram is truncated; the unit test exercises this behavior on the CI Linux target. No platform-independent whole-application proof is claimed.
 
 ### PR 4 — CLI discovery and interoperability
 
