@@ -44,6 +44,7 @@ impl<'a> BoundedDatagram<'a> {
 }
 
 pub mod discovery;
+pub mod discovery_metadata;
 pub mod parser;
 pub mod protocol;
 pub mod state;
@@ -54,7 +55,7 @@ pub use discovery::{
 };
 pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
 pub use protocol::{
-    IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_MESSAGE_BODY_BYTES, MessageEncoding, PeerIdentity,
+    IPMSG_ABSENCEOPT, IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_MESSAGE_BODY_BYTES, MessageEncoding, PeerIdentity,
     PeerJoinKind, ProtocolError, ProtocolEvent, classify_packet,
 };
 pub use state::{
