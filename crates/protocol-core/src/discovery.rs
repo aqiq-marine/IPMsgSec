@@ -143,16 +143,16 @@ pub fn apply_discovery_event(
         }
 {
     let peer_event = match event {
-        ProtocolEvent::PeerJoined { identity, .. } =>
-            PeerEvent::Joined {
-                username: identity.username(),
-                hostname: identity.hostname(),
-                observed_at,
-                supports_utf8: match event {
-                    ProtocolEvent::PeerJoined { supports_utf8, .. } => *supports_utf8,
-                    _ => false,
-                },
-            },
+        ProtocolEvent::PeerJoined {
+            identity,
+            supports_utf8,
+            ..
+        } => PeerEvent::Joined {
+            username: identity.username(),
+            hostname: identity.hostname(),
+            observed_at,
+            supports_utf8: *supports_utf8,
+        },
         ProtocolEvent::PeerDeparted(identity) =>
             PeerEvent::Departed {
                 username: identity.username(),
