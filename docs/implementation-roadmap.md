@@ -68,16 +68,18 @@ Acceptance:
 
 Compose protocol events with the peer table without performing I/O.
 
-- Add a protocol state that owns the peer state and any bounded local configuration needed for discovery.
-- Add abstract actions such as sending an answer-entry packet to a specific source or broadcasting an entry/exit packet.
-- Define a pure transition function returning the next state and an ordered, bounded action list.
-- On entry, add the observed peer and request an answer-entry response.
-- On answer-entry, add the observed peer without responding.
-- On exit, remove the exact byte-identity match.
-- Specify duplicate and unknown-event behavior explicitly.
-- Prove state invariants, error atomicity, action bounds, and the correspondence between input events and generated actions.
+- Distinguish `BroadcastEntry` from `AnswerEntry` in the protocol event model; both represent a peer join, but only the former requests a response.
+- Add a `ProtocolState` that owns the bounded peer table.
+- Represent the datagram source as an opaque `ReplyTarget(u64)` token supplied by the transport boundary, not as a platform socket or IP type.
+- Add the abstract action `SendAnswerEntry { target }`.
+- Return the next state, peer transition outcome, and a fixed-capacity ordered action list from a pure transition function.
+- On every broadcast entry, add or retain the peer and request an answer-entry response. Repeated announcements remain state-idempotent but still receive a response, allowing recovery from a lost prior response.
+- On answer-entry, add or retain the peer without responding.
+- On exit, remove the exact byte-identity match; an unknown departure is a no-op.
+- Reject message events at this discovery-only layer. The input state is immutable and no partial state/action result is returned on errors.
+- Prove the state invariant, action bound, and correspondence between discovery event kinds and generated actions.
 
-Do not place socket handles, IP addresses with platform-dependent behavior, or clock reads inside the verified transition function. If source addressing is needed, model it as an explicit bounded value supplied by the boundary.
+The initial action list has capacity one by construction. `ReplyTarget` is an adapter correlation token; the transport owns the mapping from that token to a real source address. Do not place socket handles, IP addresses with platform-dependent behavior, or clock reads inside the verified transition function.
 
 ### PR 3 — UDP transport adapter
 
