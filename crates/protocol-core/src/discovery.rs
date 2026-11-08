@@ -375,3 +375,24 @@ mod tests {
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
     }
 }
+    #[test]
+    fn broadcast_absence_updates_presence_without_sending_a_reply() {
+        let state = ProtocolState::empty();
+        let target = ReplyTarget::new(77);
+        let event = ProtocolEvent::PeerJoined {
+            identity: identity(),
+            kind: PeerJoinKind::BroadcastAbsence,
+            supports_utf8: true,
+            is_absent: true,
+            nickname: Some(b"away"),
+            group: Some(b"chemistry"),
+        };
+        let result = apply_discovery_event(&state, &event, target, 123).unwrap();
+
+        assert_eq!(result.peer_outcome, TransitionOutcome::Added);
+        assert!(result.actions.is_empty());
+        assert_eq!(result.state.peers().peers()[0].username(), b"alice");
+        assert!(result.state.peers().peers()[0].supports_utf8());
+        assert!(result.state.peers().peers()[0].is_absent());
+    }
+
