@@ -139,7 +139,7 @@ pub closed spec fn actions_match_event(
 /// scope and are rejected without changing the input state.
 pub fn apply_discovery_event(
     state: &ProtocolState,
-    event: ProtocolEvent<'_>,
+    event: &ProtocolEvent<'_>,
     reply_target: ReplyTarget,
     observed_at: u64,
 ) -> (result: Result<DiscoveryTransition, DiscoveryError>)
@@ -150,7 +150,7 @@ pub fn apply_discovery_event(
             Ok(transition) =>
                 protocol_state_well_formed(&transition.state)
                 && action_list_well_formed(&transition.actions)
-                && actions_match_event(&event, reply_target, &transition.actions),
+                && actions_match_event(event, reply_target, &transition.actions),
             Err(_) => true,
         }
 {
@@ -196,7 +196,7 @@ pub fn apply_discovery_event(
     reveal(action_list_well_formed);
     assert(action_list_well_formed(&actions));
     reveal(actions_match_event);
-    assert(actions_match_event(&event, reply_target, &actions));
+    assert(actions_match_event(event, reply_target, &actions));
 
     Ok(DiscoveryTransition {
         state: next_state,
@@ -227,7 +227,7 @@ mod tests {
         let state = ProtocolState::empty();
         let target = ReplyTarget::new(42);
         let result =
-            apply_discovery_event(&state, joined(PeerJoinKind::BroadcastEntry), target, 100)
+            apply_discovery_event(&state, &joined(PeerJoinKind::BroadcastEntry), target, 100)
                 .unwrap();
 
         assert_eq!(result.peer_outcome, TransitionOutcome::Added);
@@ -246,7 +246,7 @@ mod tests {
         let state = ProtocolState::empty();
         let result = apply_discovery_event(
             &state,
-            joined(PeerJoinKind::AnswerEntry),
+            &joined(PeerJoinKind::AnswerEntry),
             ReplyTarget::new(42),
             100,
         )
@@ -261,11 +261,11 @@ mod tests {
     fn duplicate_broadcast_entry_preserves_peer_and_still_replies() {
         let state = ProtocolState::empty();
         let target = ReplyTarget::new(7);
-        let first = apply_discovery_event(&state, joined(PeerJoinKind::BroadcastEntry), target, 10)
+        let first = apply_discovery_event(&state, &joined(PeerJoinKind::BroadcastEntry), target, 10)
             .unwrap();
         let second = apply_discovery_event(
             &first.state,
-            joined(PeerJoinKind::BroadcastEntry),
+            &joined(PeerJoinKind::BroadcastEntry),
             target,
             20,
         )
@@ -285,14 +285,14 @@ mod tests {
         let state = ProtocolState::empty();
         let first = apply_discovery_event(
             &state,
-            joined(PeerJoinKind::AnswerEntry),
+            &joined(PeerJoinKind::AnswerEntry),
             ReplyTarget::new(7),
             10,
         )
         .unwrap();
         let second = apply_discovery_event(
             &first.state,
-            joined(PeerJoinKind::AnswerEntry),
+            &joined(PeerJoinKind::AnswerEntry),
             ReplyTarget::new(8),
             20,
         )
@@ -308,13 +308,13 @@ mod tests {
         let state = ProtocolState::empty();
         let first = apply_discovery_event(
             &state,
-            joined(PeerJoinKind::AnswerEntry),
+            &joined(PeerJoinKind::AnswerEntry),
             ReplyTarget::new(1),
             10,
         )
         .unwrap();
         let event = ProtocolEvent::PeerDeparted(identity());
-        let second = apply_discovery_event(&first.state, event, ReplyTarget::new(2), 20).unwrap();
+        let second = apply_discovery_event(&first.state, &event, ReplyTarget::new(2), 20).unwrap();
 
         assert_eq!(second.peer_outcome, TransitionOutcome::Removed);
         assert!(second.state.peers().is_empty());
@@ -325,7 +325,7 @@ mod tests {
     fn unknown_departure_is_noop_without_actions() {
         let state = ProtocolState::empty();
         let event = ProtocolEvent::PeerDeparted(identity());
-        let result = apply_discovery_event(&state, event, ReplyTarget::new(2), 20).unwrap();
+        let result = apply_discovery_event(&state, &event, ReplyTarget::new(2), 20).unwrap();
 
         assert_eq!(result.peer_outcome, TransitionOutcome::Unchanged);
         assert!(result.state.peers().is_empty());
@@ -341,7 +341,7 @@ mod tests {
         };
 
         assert_eq!(
-            apply_discovery_event(&state, event, ReplyTarget::new(1), 10),
+            apply_discovery_event(&state, &event, ReplyTarget::new(1), 10),
             Err(DiscoveryError::NonDiscoveryEvent)
         );
         assert!(state.peers().is_empty());
@@ -357,14 +357,14 @@ mod tests {
                 kind: PeerJoinKind::AnswerEntry,
             };
             state =
-                apply_discovery_event(&state, event, ReplyTarget::new(index as u64), index as u64)
+                apply_discovery_event(&state, &event, ReplyTarget::new(index as u64), index as u64)
                     .unwrap()
                     .state;
         }
 
         let event = joined(PeerJoinKind::BroadcastEntry);
         assert_eq!(
-            apply_discovery_event(&state, event, ReplyTarget::new(99), 99),
+            apply_discovery_event(&state, &event, ReplyTarget::new(99), 99),
             Err(DiscoveryError::State(StateError::TableFull))
         );
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
