@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -105,7 +105,7 @@ function App() {
     return () => unlisten?.();
   }, []);
 
-  async function startSession(event: React.FormEvent) {
+  async function startSession(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
@@ -155,7 +155,7 @@ function App() {
     }
   }
 
-  async function sendMessage(event: React.FormEvent) {
+  async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (!selectedTarget || !message.trim()) return;
     setBusy(true);
