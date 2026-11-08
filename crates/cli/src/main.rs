@@ -5,12 +5,11 @@ use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_protocol_core::{
-    MAX_MESSAGE_BODY_BYTES, ProtocolEvent, ProtocolState, TransitionOutcome,
-    apply_discovery_event,
+    MAX_MESSAGE_BODY_BYTES, ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
 };
 use ipmsgsec_transport_udp::{
-    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry,
-    encode_broadcast_exit, encode_send_message,
+    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
+    encode_send_message,
 };
 
 const DEFAULT_DURATION_SECS: u64 = 30;
@@ -75,8 +74,7 @@ where
             }
             "--send-to" => {
                 send_to.push(
-                    SocketAddr::from_str(&value)
-                        .map_err(|e| format!("invalid --send-to: {e}"))?,
+                    SocketAddr::from_str(&value).map_err(|e| format!("invalid --send-to: {e}"))?,
                 );
             }
             "--message" => message = Some(value),
@@ -181,7 +179,11 @@ fn display_peers(state: &ProtocolState) {
     }
 }
 
-fn display_message(sender: ipmsgsec_protocol_core::PeerIdentity<'_>, source: SocketAddr, body: &[u8]) {
+fn display_message(
+    sender: ipmsgsec_protocol_core::PeerIdentity<'_>,
+    source: SocketAddr,
+    body: &[u8],
+) {
     println!(
         "Message from {}@{} via {}: {}",
         sender.username().escape_ascii(),
@@ -423,7 +425,11 @@ mod tests {
         assert!(parse_config(values).is_err());
 
         let mut values = args();
-        values.extend(["--send-to", "127.0.0.1:2427"].into_iter().map(str::to_owned));
+        values.extend(
+            ["--send-to", "127.0.0.1:2427"]
+                .into_iter()
+                .map(str::to_owned),
+        );
         assert!(parse_config(values).is_err());
     }
 
