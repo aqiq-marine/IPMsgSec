@@ -2,15 +2,9 @@ use std::env;
 use std::net::SocketAddr;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
-use ipmsgsec_app::{
-    AppEvent, ApplicationSession, PeerIdentityDto, PeerInfo, TextDecodeFailure,
-    encode_message_for_peer,
-};
-use ipmsgsec_transport_udp::{
-    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
-};
+use ipmsgsec_app::{AppEvent, PeerIdentityDto, PeerInfo, TextDecodeFailure};
 
 const DEFAULT_DURATION_SECS: u64 = 30;
 const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(200);
@@ -142,29 +136,6 @@ where
         hostname,
         duration: Duration::from_secs(duration_secs),
     })
-}
-
-struct PacketNumbers {
-    next: u64,
-}
-
-impl PacketNumbers {
-    fn from_system_clock() -> Result<Self, String> {
-        let elapsed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| format!("system clock is before UNIX epoch: {error}"))?;
-        let seed = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX.saturating_sub(1));
-        Ok(Self { next: seed })
-    }
-
-    fn take(&mut self) -> Result<u64, String> {
-        let value = self.next;
-        self.next = self
-            .next
-            .checked_add(1)
-            .ok_or_else(|| "packet-number space exhausted".to_owned())?;
-        Ok(value)
-    }
 }
 
 fn display_peers(peers: &[PeerInfo]) {
