@@ -225,8 +225,8 @@ pub fn classify_packet<'a>(
     let username = match discovery_data { Some(data) => data.username.unwrap_or(packet.username), None => packet.username };
     let hostname = match discovery_data { Some(data) => data.hostname.unwrap_or(packet.hostname), None => packet.hostname };
     let identity = make_identity(username, hostname)?;
-    let nickname = match discovery_data { Some(data) => data.nickname.or(data.legacy_nickname), None => None };
-    let group = match discovery_data { Some(data) => data.group.or(data.legacy_group), None => None };
+    let nickname = match discovery_data { Some(data) => match data.nickname { Some(value) => Some(value), None => data.legacy_nickname }, None => None };
+    let group = match discovery_data { Some(data) => match data.group { Some(value) => Some(value), None => data.legacy_group }, None => None };
 
     let event = match packet.command {
         CommandKind::BroadcastEntry =>
