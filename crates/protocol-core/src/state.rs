@@ -12,6 +12,7 @@ pub struct Peer {
     username: Vec<u8>,
     hostname: Vec<u8>,
     first_seen_at: u64,
+    supports_utf8: bool,
 }
 
 impl Peer {
@@ -26,6 +27,10 @@ impl Peer {
     pub fn first_seen_at(&self) -> u64 {
         self.first_seen_at
     }
+
+    pub fn supports_utf8(&self) -> bool {
+        self.supports_utf8
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -39,6 +44,7 @@ pub enum PeerEvent<'a> {
         username: &'a [u8],
         hostname: &'a [u8],
         observed_at: u64,
+        supports_utf8: bool,
     },
     Departed {
         username: &'a [u8],
@@ -57,6 +63,7 @@ pub enum TransitionOutcome {
     Added,
     Removed,
     Unchanged,
+    Updated,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -189,6 +196,7 @@ fn copy_peer(peer: &Peer) -> (result: Peer)
         username: copy_bytes(peer.username.as_slice()),
         hostname: copy_bytes(peer.hostname.as_slice()),
         first_seen_at: peer.first_seen_at,
+        supports_utf8: peer.supports_utf8,
     }
 }
 
@@ -258,6 +266,7 @@ fn append_peer(
     username: &[u8],
     hostname: &[u8],
     observed_at: u64,
+    supports_utf8: bool,
 ) -> (result: PeerState)
     requires
         peer_state_well_formed(state),
@@ -278,6 +287,7 @@ fn append_peer(
         username: copied_username,
         hostname: copied_hostname,
         first_seen_at: observed_at,
+        supports_utf8,
     });
 
     reveal(peer_state_well_formed);
@@ -410,20 +420,27 @@ pub fn apply_event(
             username,
             hostname,
             observed_at,
+            supports_utf8,
         } => {
             match found {
-                Some(_index) => {
-                    let next = copy_state(state);
+                Some(index) => {
+                    let mut next = copy_state(state);
+                    let changed = next.peers[index].supports_utf8 != supports_utf8;
+                    next.peers[index].supports_utf8 = supports_utf8;
                     Ok(TransitionResult {
                         state: next,
-                        outcome: TransitionOutcome::Unchanged,
+                        outcome: if changed {
+                            TransitionOutcome::Updated
+                        } else {
+                            TransitionOutcome::Unchanged
+                        },
                     })
                 }
                 None => {
                     if state.peers.len() >= MAX_PEERS {
                         return Err(StateError::TableFull);
                     }
-                    let next = append_peer(state, username, hostname, observed_at);
+                    let next = append_peer(state, username, hostname, observed_at, supports_utf8);
                     Ok(TransitionResult {
                         state: next,
                         outcome: TransitionOutcome::Added,
@@ -460,6 +477,7 @@ mod tests {
             username,
             hostname,
             observed_at,
+            supports_utf8: false,
         }
     }
 
