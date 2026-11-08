@@ -265,11 +265,14 @@ impl ApplicationService {
 
     fn stop_and_join(&mut self) -> Result<(), ServiceError> {
         if let Some(worker) = self.worker.take() {
-            self.handle
-                .commands
-                .send(WorkerCommand::Stop)
-                .map_err(|_| ServiceError::WorkerStopped)?;
-            worker.join().map_err(|_| ServiceError::WorkerPanicked)?;
+            let stop_result = self.handle.commands.send(WorkerCommand::Stop);
+            let join_result = worker.join();
+            if join_result.is_err() {
+                return Err(ServiceError::WorkerPanicked);
+            }
+            if stop_result.is_err() {
+                return Err(ServiceError::WorkerStopped);
+            }
         }
         Ok(())
     }
@@ -560,13 +563,22 @@ mod tests {
 
     #[test]
     fn starts_and_stops_worker_and_emits_lifecycle_events() {
-        let mut config = config();
+        let config = config();
         let receiver = UdpSocket::bind(config.announce_to[0]).unwrap();
         receiver
             .set_read_timeout(Some(Duration::from_secs(1)))
             .unwrap();
         let service = ApplicationService::start(config.clone()).unwrap();
         assert_eq!(service.local_address().ip(), config.bind_address.ip());
+        let snapshot = service.snapshot().unwrap();
+        assert!(snapshot.running);
+        assert!(snapshot.peers.is_empty());
+        assert_eq!(
+            service
+                .handle()
+                .send_message(config.announce_to[0], "not yet observed"),
+            Err(ServiceError::PeerNotObserved)
+        );
         assert!(matches!(
             service.recv_event_timeout(Duration::from_secs(1)),
             Ok(SessionEvent::Started { .. })
