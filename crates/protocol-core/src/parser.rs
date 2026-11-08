@@ -156,7 +156,7 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
             );
         }
         value = value * 10 + digit;
-        index = index + 1;
+        index += 1;
     }
 
     Ok(value)
@@ -197,6 +197,7 @@ fn classify_command(command_id: u8) -> (result: CommandKind)
 ///
 /// This function is pure: it borrows the input and neither allocates nor
 /// mutates application state. It consumes exactly five header delimiters.
+#[allow(clippy::question_mark)]
 pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseError>)
     ensures
         match result {
