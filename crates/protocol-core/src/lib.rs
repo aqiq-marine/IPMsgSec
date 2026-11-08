@@ -1,5 +1,8 @@
 //! Bounded boundary types for untrusted IP Messenger datagrams.
-//! This crate is intentionally incomplete; parsing and state transitions come next.
+//!
+//! Parsing lives in the Verus-enabled parser module. The size wrapper is the
+//! transport-facing boundary type; parse_packet also checks the size itself
+//! so callers cannot bypass the limit by passing a raw slice.
 
 /// Application-level maximum datagram size (8 KiB), not the UDP protocol maximum.
 pub const MAX_PACKET_SIZE: usize = 8 * 1024;
@@ -42,6 +45,10 @@ impl<'a> BoundedDatagram<'a> {
         self.bytes.is_empty()
     }
 }
+
+pub mod parser;
+
+pub use parser::{parse_packet, CommandKind, Packet, ParseError};
 
 #[cfg(test)]
 mod tests {
