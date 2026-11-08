@@ -122,7 +122,8 @@ mod tests {
     fn parses_utf8_metadata_with_group() {
         let parsed = parse_discovery_data(
             "legacy\0old-group\0\nUN:ユーザー\nHN:ホスト\nNN:表示名\nGN:新グループ\n".as_bytes(),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(parsed.username, Some("ユーザー".as_bytes()));
         assert_eq!(parsed.hostname, Some("ホスト".as_bytes()));
         assert_eq!(parsed.nickname, Some("表示名".as_bytes()));
