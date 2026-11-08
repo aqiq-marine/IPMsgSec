@@ -2,15 +2,7 @@
 
 ## Target and user-visible lifecycle
 
-The first desktop target is Windows. Startup shows the main window. Closing that window hides it and leaves the process resident in the system tray. Selecting Open IPMsgSec from the tray restores, unminimizes, and focuses the existing window. Selecting Quit exits the application. A second launch must activate the existing instance rather than creating another process/session.
-
-Process start -> create tray icon/menu -> show main window.
-
-Main window close -> prevent close -> hide window. The process and network session remain alive.
-
-Tray Open -> show, unminimize, and focus the existing window.
-
-Tray Quit -> graceful application shutdown -> process exit.
+The first desktop target is Windows. Startup shows the main window and installs the system-tray icon. Closing the main window hides it and leaves the process resident in the tray. Selecting Open IPMsgSec restores, unminimizes, and focuses the existing window. Selecting Quit performs graceful session shutdown and exits the process. A second launch activates the existing instance.
 
 Window visibility and application/session lifetime are distinct concepts. Closing the window is not a session shutdown operation.
 
@@ -18,12 +10,13 @@ Window visibility and application/session lifetime are distinct concepts. Closin
 
 React / TypeScript frontend
     |
-    | Tauri Commands and Events
+    | Tauri Commands and Events (owned DTOs)
     v
 Tauri desktop adapter (unverified)
     - commands.rs
     - tray.rs
     - state.rs
+    - bounded event forwarding thread
     |
     v
 ipmsgsec-app::ApplicationService / ApplicationHandle
@@ -32,7 +25,48 @@ ipmsgsec-app::ApplicationService / ApplicationHandle
     |
     +--> ipmsgsec-protocol-core (Verus proof boundary)
 
-The first tray-shell increment does not yet instantiate ApplicationService. The following integration increment will store the service/handle in Tauri managed state, forward SessionEvent values to the frontend, and expose narrow request/response commands. The frontend must never own a socket or mutate protocol state.
+The Tauri adapter is the only frontend-facing boundary. The frontend never owns a UDP socket, ProtocolState, ReplyTarget, or ApplicationService internals.
+
+## Session startup and explicit network configuration
+
+The desktop process does not silently guess a broadcast destination or interface. Before starting a network session, the user supplies:
+
+- An IPv4 bind socket address (the initial UI suggests 0.0.0.0:2425).
+- One or more explicit IPv4 discovery targets, each including a port. Multiple targets are comma-separated.
+- Local username and hostname.
+
+The initial discovery targets field is empty by design. The UI may show examples such as 192.168.1.255:2425 or 255.255.255.255:2425, but it does not choose either automatically. The session worker sends BR_ENTRY to the configured targets at startup. The Discover command sends another BR_ENTRY.
+
+The application does not persist these settings yet. Persistence and migration policy are a later milestone.
+
+## Session ownership and event flow
+
+DesktopState stores the ApplicationService and a clone of its ApplicationHandle. The service owns the existing bounded worker; the worker remains the sole owner of UDP transport, protocol session state, packet-number allocation, and observed peer endpoints.
+
+A dedicated desktop event-forwarding thread drains SessionEvent from the service's bounded event queue and emits serializable DTOs on the Tauri session-event channel. The frontend can also request an owned peer snapshot. If the worker reports dropped events, the frontend refreshes the snapshot rather than assuming its event-derived view is complete.
+
+The frontend uses these narrow commands:
+
+- start_session: validate explicit IPv4 settings and start the service.
+- discover: request another BR_ENTRY.
+- get_snapshot: retrieve the current observed peer list.
+- send_message: submit text to an observed peer endpoint.
+- stop_session: gracefully stop the worker while leaving the desktop process alive.
+
+A successful send means only that the local UDP socket accepted the datagram. It is not a remote delivery acknowledgement. Peer identities and source addresses are observations, not authenticated identities.
+
+## Shutdown requirements
+
+The main-window close request only hides the window. The explicit Stop session command or application Quit path performs session shutdown:
+
+1. Stop the desktop event-forwarding thread.
+2. Drop the UI-facing handle so no new commands can be submitted.
+3. Request worker shutdown.
+4. Attempt BR_EXIT to the configured destinations.
+5. Release the UDP socket and join the worker.
+6. For tray Quit/process exit, exit the Tauri process after shutdown.
+
+The shutdown operation is idempotent. The Tauri process-level Exit hook also invokes it as a final cleanup path.
 
 ## Planned frontend layout
 
@@ -41,9 +75,9 @@ apps/desktop/
     src/
       main.rs
       lib.rs
-      tray.rs
-      state.rs
       commands.rs
+      state.rs
+      tray.rs
     capabilities/
     Cargo.toml
     tauri.conf.json
@@ -56,18 +90,6 @@ apps/desktop/
   package.json
   vite.config.ts
 
-## Shutdown requirements
-
-When ApplicationService is integrated, only the explicit Quit path and process-level shutdown path may stop the session. The sequence is:
-
-1. Stop accepting new frontend operations.
-2. Request worker shutdown.
-3. Attempt BR_EXIT to configured destinations.
-4. Release the UDP socket and join the worker.
-5. Exit the Tauri process.
-
-A window close request must not run this sequence.
-
 ## Verification boundary
 
-Tauri, frontend code, tray integration, OS APIs, and the desktop adapter are unverified. Existing Verus proofs continue to apply only to the existing protocol-core proof targets. Frontend tests and desktop build checks are testing evidence, not formal proof.
+The protocol-core parser and state transition proof targets remain unchanged. The application worker, UDP adapter, Tauri commands, event-forwarding thread, frontend, tray integration, OS APIs, and packaging are unverified. CI compilation and tests are testing evidence, not formal proof. Windows runtime acceptance testing remains required for startup, discovery across hosts, close-to-tray behavior, tray restore, Stop session, graceful Quit, and second-instance activation.
