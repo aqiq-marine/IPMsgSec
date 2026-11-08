@@ -99,11 +99,17 @@ The adapter is unverified. The `MAX_PACKET_SIZE + 1` sentinel technique depends 
 
 ### PR 4 — CLI discovery and interoperability
 
-- Provide a minimal CLI to start/stop discovery and display the observed peer list.
-- Test with two and three local instances.
-- Exercise duplicate entry, departure, malformed datagrams, packet loss/reordering assumptions, and shutdown.
-- Select and document a concrete external IP Messenger interoperability target.
-- Record packet captures or reproducible test traces for interoperability claims.
+Implemented in `ipmsgsec-cli`:
+
+- Require an explicit IPv4 bind address and one or more explicit announcement destinations; no interface or broadcast destination is guessed.
+- Send BR_ENTRY on startup and BR_EXIT on normal duration expiry.
+- Receive bounded UDP datagrams, delegate parsing/classification to protocol-core, apply the pure discovery transition, and send ANSENTRY to the exact source of BR_ENTRY.
+- Display the observed peer table. Ignore malformed, unsupported, and non-discovery packets without logging packet bodies.
+- Support two/three same-host instances using distinct loopback ports and repeated unicast `--announce-to` destinations.
+- Restrict local identity to non-empty ASCII without ':' until legacy/UTF-8 identity encoding is specified.
+- Use a system-clock-seeded, checked packet-number counter; this is best-effort and not an anti-replay or uniqueness guarantee.
+
+The CLI is unverified. CI tests are not external interoperability evidence. The first external target is the official Windows IP Messenger 5.9.1 client; the manual test matrix is in `docs/cli-discovery.md`. No external-client test or packet capture is claimed until that matrix is completed.
 
 ### PR 5 — Text messaging
 
