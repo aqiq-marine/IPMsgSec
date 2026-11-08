@@ -99,7 +99,7 @@ Keep socket I/O, clocks, filesystem operations, and UI outside the verified core
 
 ## Development
 
-The initial Rust workspace, bounded datagram type, and a first pure IP Messenger packet parser are present. The parser is written in the runtime crate's Verus `verus!` module and is selected for Cargo-Verus verification. The pinned toolchain and local commands are documented in [docs/toolchain.md](docs/toolchain.md). The parser and proof target are not yet considered verified: wait for a successful CI run on the current commit.
+The initial Rust workspace, bounded datagram type, and a first pure IP Messenger packet parser are present. The parser is written in the runtime crate's Verus `verus!` module and is selected for Cargo-Verus verification. The pinned toolchain and local commands are documented in [docs/toolchain.md](docs/toolchain.md). The parser now carries local Verus contracts for delimiter search, decimal-digit validation, command classification, and successful packet invariants. These contracts are not considered proved until a successful CI run on the exact commit.
 
 Planned quality gates:
 1. Formatting and linting.
