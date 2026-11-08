@@ -162,10 +162,11 @@ impl std::error::Error for EncodeError {}
 /// choose a legacy encoding. The ':' delimiter is rejected because it would
 /// change the parser's five-field header structure. Packet-number allocation
 /// and collision policy remain the caller's responsibility.
-pub fn encode_answer_entry(
+fn encode_identity_command(
     packet_number: u64,
     username: &[u8],
     hostname: &[u8],
+    command: u8,
 ) -> Result<Vec<u8>, EncodeError> {
     if username.is_empty() || hostname.is_empty() {
         return Err(EncodeError::EmptyIdentity);
@@ -184,12 +185,41 @@ pub fn encode_answer_entry(
     packet.extend_from_slice(username);
     packet.push(b':');
     packet.extend_from_slice(hostname);
-    packet.extend_from_slice(b":3:");
+    packet.push(b':');
+    packet.extend_from_slice(command.to_string().as_bytes());
+    packet.push(b':');
 
     if packet.len() > MAX_PACKET_SIZE {
         return Err(EncodeError::PacketTooLarge);
     }
     Ok(packet)
+}
+
+/// Encode an IPMSG_ANSENTRY response (command 3).
+pub fn encode_answer_entry(
+    packet_number: u64,
+    username: &[u8],
+    hostname: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
+    encode_identity_command(packet_number, username, hostname, 3)
+}
+
+/// Encode an IPMSG_BR_ENTRY announcement (command 1).
+pub fn encode_broadcast_entry(
+    packet_number: u64,
+    username: &[u8],
+    hostname: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
+    encode_identity_command(packet_number, username, hostname, 1)
+}
+
+/// Encode an IPMSG_BR_EXIT announcement (command 2).
+pub fn encode_broadcast_exit(
+    packet_number: u64,
+    username: &[u8],
+    hostname: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
+    encode_identity_command(packet_number, username, hostname, 2)
 }
 
 /// A deliberately small UDP socket adapter.
@@ -321,6 +351,29 @@ mod tests {
                 kind: PeerJoinKind::AnswerEntry,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn encodes_entry_and_exit_commands_with_empty_extension() {
+        let entry = encode_broadcast_entry(10, b"alice", b"host").unwrap();
+        let exit = encode_broadcast_exit(11, b"alice", b"host").unwrap();
+        let parsed_entry = parse_packet(&entry).unwrap();
+        let parsed_exit = parse_packet(&exit).unwrap();
+        assert_eq!(parsed_entry.command, CommandKind::BroadcastEntry);
+        assert_eq!(parsed_exit.command, CommandKind::BroadcastExit);
+        assert!(parsed_entry.additional_data.is_empty());
+        assert!(parsed_exit.additional_data.is_empty());
+        assert!(matches!(
+            classify_packet(&parsed_entry),
+            Ok(ProtocolEvent::PeerJoined {
+                kind: PeerJoinKind::BroadcastEntry,
+                ..
+            })
+        ));
+        assert!(matches!(
+            classify_packet(&parsed_exit),
+            Ok(ProtocolEvent::PeerDeparted(_))
         ));
     }
 
