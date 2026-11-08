@@ -52,8 +52,13 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
         start <= bytes.len(),
     ensures
         match result {
-            Some(index) => start <= index && index < bytes.len() && bytes[index] == b':',
-            None => true,
+            Some(index) =>
+                start <= index
+                && index < bytes.len()
+                && bytes[index] == b':'
+                && forall|i: int| start as int <= i < index as int ==> bytes@[i] != b':',
+            None =>
+                forall|i: int| start as int <= i < bytes.len() as int ==> bytes@[i] != b':',
         }
 {
     let mut index = start;
@@ -61,6 +66,7 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
         invariant
             start <= index,
             index <= bytes.len(),
+            forall|i: int| start as int <= i < index as int ==> bytes@[i] != b':',
         decreases
             bytes.len() - index,
     {
@@ -76,6 +82,13 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
 /// Overflow is detected before multiplication/addition.
 #[allow(clippy::manual_range_contains)]
 fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
+    ensures
+        match result {
+            Ok(_) =>
+                forall|i: int| 0 <= i < digits.len() as int
+                    ==> digits@[i] >= b'0' && digits@[i] <= b'9',
+            Err(_) => true,
+        }
 {
     if digits.is_empty() {
         return Err(ParseError::InvalidDecimal);
@@ -86,6 +99,8 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
     while index < digits.len()
         invariant
             index <= digits.len(),
+            forall|i: int| 0 <= i < index as int
+                ==> digits@[i] >= b'0' && digits@[i] <= b'9',
         decreases
             digits.len() - index,
     {
@@ -343,5 +358,25 @@ mod tests {
     fn rejects_oversized_datagram() {
         let input = vec![b'x'; MAX_PACKET_SIZE + 1];
         assert_eq!(parse(&input), Err(ParseError::PacketTooLarge));
+    }
+
+    #[test]
+    fn accepts_command_flag_bits_without_changing_command_id() {
+        let packet = parse(b"1:2:alice:pc:16777217:body").unwrap();
+        assert_eq!(packet.command, CommandKind::BroadcastEntry);
+        assert_eq!(packet.option_flags, 0x0100_0000);
+    }
+
+    #[test]
+    fn accepts_all_short_byte_strings_without_panicking() {
+        let _ = parse(&[]);
+        for first in 0_u8..=u8::MAX {
+            let one = [first];
+            let _ = parse(&one);
+            for second in 0_u8..=u8::MAX {
+                let two = [first, second];
+                let _ = parse(&two);
+            }
+        }
     }
 }
