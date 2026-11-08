@@ -53,7 +53,10 @@ pub use discovery::{
     ReplyTarget, apply_discovery_event,
 };
 pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
-pub use protocol::{PeerIdentity, PeerJoinKind, ProtocolError, ProtocolEvent, classify_packet};
+pub use protocol::{
+    MAX_MESSAGE_BODY_BYTES, PeerIdentity, PeerJoinKind, ProtocolError, ProtocolEvent,
+    classify_packet,
+};
 pub use state::{
     MAX_IDENTITY_BYTES, MAX_PEERS, Peer, PeerEvent, PeerState, StateError, TransitionOutcome,
     TransitionResult, apply_event,
