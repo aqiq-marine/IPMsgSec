@@ -166,9 +166,7 @@ are not yet implemented. See [CLI discovery and messaging](docs/cli-discovery.md
 The `ipmsgsec-app` crate is the UI-independent application facade used by
 the CLI and intended for the future desktop GUI. It provides owned,
 serializable peer/message/status/error DTOs and centralizes event processing
-and message-encoding selection. The current session is synchronous and
-single-owner; the background worker and command/event lifecycle are the next
-milestone. See [Shared application layer](docs/application-layer.md).
+and message-encoding selection. The application layer includes a bounded single-owner background worker and command/event lifecycle. See [Shared application layer](docs/application-layer.md).
 
 
 ## Desktop application
