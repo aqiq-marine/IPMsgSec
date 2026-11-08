@@ -591,6 +591,40 @@ mod tests {
     }
 
     #[test]
+    fn command_queue_full_is_reported_without_growing_the_queue() {
+        let (commands, _receiver) = mpsc::sync_channel(1);
+        let handle = ApplicationHandle { commands };
+        handle.try_send(WorkerCommand::Stop).unwrap();
+        assert_eq!(handle.discover(), Err(ServiceError::CommandQueueFull));
+    }
+
+    #[test]
+    fn event_queue_overflow_is_counted_and_reported_after_capacity_returns() {
+        let (events, receiver) = mpsc::sync_channel(1);
+        let mut dropped = 0;
+
+        emit(
+            &events,
+            SessionEvent::Started {
+                local_address: "127.0.0.1:2425".parse().unwrap(),
+            },
+            &mut dropped,
+        );
+        emit(&events, SessionEvent::Stopped, &mut dropped);
+        assert_eq!(dropped, 1);
+
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SessionEvent::Started { .. })
+        ));
+        emit(&events, SessionEvent::Stopped, &mut dropped);
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SessionEvent::EventsDropped { count: 1 })
+        ));
+    }
+
+    #[test]
     fn rejects_zero_or_excessive_queue_capacities() {
         let mut config = config();
         config.command_queue_capacity = 0;
