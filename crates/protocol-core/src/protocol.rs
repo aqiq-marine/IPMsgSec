@@ -10,6 +10,13 @@ use vstd::prelude::*;
 
 verus! {
 
+/// Distinguishes an unsolicited discovery announcement from its reply.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PeerJoinKind {
+    BroadcastEntry,
+    AnswerEntry,
+}
+
 /// A byte-exact peer identity borrowed from a parsed packet.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PeerIdentity<'a> {
@@ -18,6 +25,20 @@ pub struct PeerIdentity<'a> {
 }
 
 impl<'a> PeerIdentity<'a> {
+    /// Validate and construct a borrowed peer identity.
+    pub fn new(
+        username: &'a [u8],
+        hostname: &'a [u8],
+    ) -> (result: Result<Self, ProtocolError>)
+        ensures
+            match result {
+                Ok(identity) => peer_identity_well_formed(&identity),
+                Err(_) => true,
+            }
+    {
+        make_identity(username, hostname)
+    }
+
     pub fn username(&self) -> &'a [u8] {
         self.username
     }
@@ -30,7 +51,10 @@ impl<'a> PeerIdentity<'a> {
 /// A semantic event represented by a supported packet.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProtocolEvent<'a> {
-    PeerJoined(PeerIdentity<'a>),
+    PeerJoined {
+        identity: PeerIdentity<'a>,
+        kind: PeerJoinKind,
+    },
     PeerDeparted(PeerIdentity<'a>),
     MessageReceived {
         sender: PeerIdentity<'a>,
@@ -55,7 +79,7 @@ pub closed spec fn peer_identity_well_formed(identity: &PeerIdentity) -> bool {
 
 pub closed spec fn protocol_event_well_formed(event: &ProtocolEvent) -> bool {
     match event {
-        ProtocolEvent::PeerJoined(identity) =>
+        ProtocolEvent::PeerJoined { identity, .. } =>
             peer_identity_well_formed(identity),
         ProtocolEvent::PeerDeparted(identity) =>
             peer_identity_well_formed(identity),
@@ -117,8 +141,16 @@ pub fn classify_packet<'a>(
     let identity = make_identity(packet.username, packet.hostname)?;
 
     let event = match packet.command {
-        CommandKind::BroadcastEntry | CommandKind::AnswerEntry =>
-            ProtocolEvent::PeerJoined(identity),
+        CommandKind::BroadcastEntry =>
+            ProtocolEvent::PeerJoined {
+                identity,
+                kind: PeerJoinKind::BroadcastEntry,
+            },
+        CommandKind::AnswerEntry =>
+            ProtocolEvent::PeerJoined {
+                identity,
+                kind: PeerJoinKind::AnswerEntry,
+            },
         CommandKind::BroadcastExit =>
             ProtocolEvent::PeerDeparted(identity),
         CommandKind::SendMessage =>
@@ -165,18 +197,33 @@ mod tests {
     }
 
     #[test]
-    fn classifies_broadcast_entry_and_answer_entry_as_join() {
-        for command in [CommandKind::BroadcastEntry, CommandKind::AnswerEntry] {
-            let parsed = packet(b"alice", b"workstation", command, b"");
-            let event = classify_packet(&parsed).unwrap();
-            assert_eq!(
-                event,
-                ProtocolEvent::PeerJoined(PeerIdentity {
+    fn classifies_broadcast_entry_with_its_join_kind() {
+        let parsed = packet(b"alice", b"workstation", CommandKind::BroadcastEntry, b"");
+        assert_eq!(
+            classify_packet(&parsed),
+            Ok(ProtocolEvent::PeerJoined {
+                identity: PeerIdentity {
                     username: b"alice",
                     hostname: b"workstation",
-                })
-            );
-        }
+                },
+                kind: PeerJoinKind::BroadcastEntry,
+            })
+        );
+    }
+
+    #[test]
+    fn classifies_answer_entry_with_its_join_kind() {
+        let parsed = packet(b"alice", b"workstation", CommandKind::AnswerEntry, b"");
+        assert_eq!(
+            classify_packet(&parsed),
+            Ok(ProtocolEvent::PeerJoined {
+                identity: PeerIdentity {
+                    username: b"alice",
+                    hostname: b"workstation",
+                },
+                kind: PeerJoinKind::AnswerEntry,
+            })
+        );
     }
 
     #[test]
@@ -274,7 +321,7 @@ mod tests {
         let parsed = packet(&exact, &exact, CommandKind::BroadcastEntry, b"");
         let event = classify_packet(&parsed).unwrap();
         match event {
-            ProtocolEvent::PeerJoined(identity) => {
+            ProtocolEvent::PeerJoined { identity, .. } => {
                 assert_eq!(identity.username().len(), MAX_IDENTITY_BYTES);
                 assert_eq!(identity.hostname().len(), MAX_IDENTITY_BYTES);
             }
@@ -292,7 +339,7 @@ mod tests {
         );
         assert!(matches!(
             classify_packet(&parsed),
-            Ok(ProtocolEvent::PeerJoined(_))
+            Ok(ProtocolEvent::PeerJoined { .. })
         ));
     }
 }
