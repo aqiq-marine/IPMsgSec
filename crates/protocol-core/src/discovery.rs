@@ -213,6 +213,9 @@ mod tests {
             identity: identity(),
             kind,
             supports_utf8: false,
+            is_absent: false,
+            nickname: None,
+            group: None,
         }
     }
 
