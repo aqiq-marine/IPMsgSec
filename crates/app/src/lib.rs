@@ -525,7 +525,7 @@ mod tests {
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();
         let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let packet = "1:12:legacy-user:legacy-host:16777476:legacy-nick\\0legacy-group\\0\\nUN:ボブ\\nHN:remote-pc\\nNN:離席中\\nGN:chemistry\\n".as_bytes();
+        let packet = "1:12:legacy-user:legacy-host:16777476:legacy-nick\0legacy-group\0\nUN:ボブ\nHN:remote-pc\nNN:離席中\nGN:chemistry\n".as_bytes();
         sender
             .send_to(packet, transport.local_addr().unwrap())
             .unwrap();
