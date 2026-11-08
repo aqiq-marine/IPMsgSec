@@ -626,12 +626,7 @@ mod tests {
 
     #[test]
     fn classifies_broadcast_absence_without_absence_flag_as_return_to_presence() {
-        let mut parsed = packet(
-            b"alice",
-            b"pc",
-            CommandKind::BroadcastAbsence,
-            b"nickname",
-        );
+        let mut parsed = packet(b"alice", b"pc", CommandKind::BroadcastAbsence, b"nickname");
         parsed.command_word = 0x0100_0004;
         parsed.option_flags = IPMSG_CAPUTF8OPT;
         assert!(matches!(
