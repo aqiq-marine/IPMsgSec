@@ -152,7 +152,7 @@ Acceptance: Rust tests, formatting, Clippy, and Verus CI passed on the implement
 - [x] Keep protocol-core and transport-udp as lower-level dependencies; the app layer delegates parsing and transitions rather than duplicating them.
 - [x] Add application tests for discovery DTOs, message decoding, encoding selection, and status/error snapshots.
 
-Acceptance: implemented on the feature branch; CI must confirm CLI behavior and app tests. The protocol-core proof boundary is unchanged. The application crate itself is unverified.
+Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on PR #8 (run [42456163187](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42456163187)). The protocol-core proof boundary is unchanged; the application crate itself remains unverified.
 
 ### Implementation PR 8 — Session lifecycle and event distribution
 
