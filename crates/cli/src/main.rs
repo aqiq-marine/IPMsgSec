@@ -341,9 +341,9 @@ fn run(config: Config) -> Result<(), String> {
                         }
                     }
                 }
-                Err(error) => eprintln!(
-                    "cannot encode message for {target} using {encoding:?}: {error}"
-                ),
+                Err(error) => {
+                    eprintln!("cannot encode message for {target} using {encoding:?}: {error}")
+                }
             }
         }
 
