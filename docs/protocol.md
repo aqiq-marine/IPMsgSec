@@ -59,10 +59,10 @@ This is a compatibility/security trade-off: unknown data is not mislabeled as ma
 |---|---:|---|
 | IPMSG_BR_ENTRY | 0x00000001 (1) | Broadcast entry |
 | IPMSG_BR_EXIT | 0x00000002 (2) | Broadcast departure |
-| IPMSG_ANSENTRY | 0x00000003 (3) | Reply to entry |
+| IPMSG_ANSENTRY | 0x00000003 (3) | Reply to entry |\n| IPMSG_BR_ABSENCE | 0x00000004 (4) | Presence/absence status and nickname/group update |
 | IPMSG_SENDMSG | 0x00000020 (32) | Send a text message |
 
-These command values are confirmed in upstream src/ipmsg.h. The implementation accepts `IPMSG_CAPUTF8OPT` only on BR_ENTRY and ANSENTRY discovery packets, and accepts `IPMSG_UTF8OPT` only on SENDMSG. Other SENDMSG flags, including SENDCHECK, remain unsupported. BR_EXIT does not carry the UTF-8 capability flag. Unsupported option combinations must never be reinterpreted as another command.
+These command values are confirmed in upstream src/ipmsg.h. The implementation accepts `IPMSG_CAPUTF8OPT` on BR_ENTRY, ANSENTRY, and BR_ABSENCE discovery packets, and accepts `IPMSG_ABSENCEOPT` on those same presence-announcement commands. `IPMSG_UTF8OPT` remains limited to SENDMSG. Other SENDMSG flags, including SENDCHECK, remain unsupported. BR_EXIT does not carry the UTF-8 capability flag. Unsupported option combinations must never be reinterpreted as another command.
 
 ## Discovery flow
 
@@ -90,7 +90,7 @@ The CLI chooses the message encoding per destination:
 - Malformed UTF-8 or CP932 is reported as a decoding error; the CLI displays the raw bytes as hexadecimal rather than silently inserting replacement characters.
 - A message is sent only after the explicit destination has been observed in a discovery packet, so the sender has a capability advertisement. Unknown capability is not treated as UTF-8 support.
 
-The upstream protocol draft specifies that `IPMSG_CAPUTF8OPT` is advertised on BR_ENTRY, ANSENTRY, and BR_ABSENCE. This implementation supports the first two commands; BR_ABSENCE is not in the current command subset. The draft also states that BR-family packets must not set `IPMSG_UTF8OPT`; for non-ASCII identity/group metadata it defines a separate UTF-8 text extension after the legacy group extension. The current CLI continues to restrict username and hostname fields to ASCII and does not implement that metadata extension.
+The upstream protocol draft specifies that `IPMSG_CAPUTF8OPT` is advertised on BR_ENTRY, ANSENTRY, and BR_ABSENCE. All three commands are now classified. BR_ABSENCE is represented as a peer-presence update; `IPMSG_ABSENCEOPT` indicates absence mode, and a BR_ABSENCE packet without that flag represents a return to presence. BR-family packets must not set `IPMSG_UTF8OPT`; instead, the implementation parses the documented UTF-8 metadata extension after the legacy nickname/group area. The bounded parser recognizes `UN:`, `HN:`, `NN:`, and `GN:` lines, validates their UTF-8, rejects duplicate known keys and malformed/truncated lines, and gives these values precedence over the legacy header/additional-data fields. The parsed nickname/group are exposed as borrowed values on `ProtocolEvent::PeerJoined`. The peer-table currently persists the canonical username/hostname and UTF-8 capability; persistence/display of nickname, group, and absence status is a separate application-state integration step.
 
 The first UTF-8 increment does not request `IPMSG_SENDCHECKOPT`, send `IPMSG_RECVMSG` acknowledgements, implement retries, or interpret NUL-separated attachment extensions. The protocol-core models capability and message-encoding decisions; the encoding_rs conversion, UDP adapter, and CLI remain unverified boundaries.
 
