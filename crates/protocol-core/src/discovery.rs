@@ -143,12 +143,16 @@ pub fn apply_discovery_event(
         }
 {
     let peer_event = match event {
-        ProtocolEvent::PeerJoined { identity, .. } =>
-            PeerEvent::Joined {
-                username: identity.username(),
-                hostname: identity.hostname(),
-                observed_at,
-            },
+        ProtocolEvent::PeerJoined {
+            identity,
+            supports_utf8,
+            ..
+        } => PeerEvent::Joined {
+            username: identity.username(),
+            hostname: identity.hostname(),
+            observed_at,
+            supports_utf8: *supports_utf8,
+        },
         ProtocolEvent::PeerDeparted(identity) =>
             PeerEvent::Departed {
                 username: identity.username(),
@@ -208,6 +212,7 @@ mod tests {
         ProtocolEvent::PeerJoined {
             identity: identity(),
             kind,
+            supports_utf8: false,
         }
     }
 
@@ -328,6 +333,7 @@ mod tests {
         let event = ProtocolEvent::MessageReceived {
             sender: identity(),
             body: b"hello",
+            encoding: crate::protocol::MessageEncoding::Cp932,
         };
 
         assert_eq!(
@@ -345,6 +351,7 @@ mod tests {
             let event = ProtocolEvent::PeerJoined {
                 identity: PeerIdentity::new(username.as_bytes(), b"pc").unwrap(),
                 kind: PeerJoinKind::AnswerEntry,
+                supports_utf8: false,
             };
             state =
                 apply_discovery_event(&state, &event, ReplyTarget::new(index as u64), index as u64)

@@ -47,6 +47,7 @@ fn spawn_message_sender(
     bind: SocketAddr,
     announce_to: SocketAddr,
     send_to: SocketAddr,
+    body: &str,
     duration_secs: u64,
 ) -> Child {
     Command::new(env!("CARGO_BIN_EXE_ipmsgsec-cli"))
@@ -57,7 +58,7 @@ fn spawn_message_sender(
         .arg("--send-to")
         .arg(send_to.to_string())
         .arg("--message")
-        .arg("hello: from cli")
+        .arg(body)
         .arg("--username")
         .arg("sender")
         .arg("--hostname")
@@ -127,11 +128,37 @@ fn three_instances_discover_the_other_two_peers() {
 }
 
 #[test]
+fn sender_negotiates_utf8_and_delivers_unicode_message() {
+    let addresses = reserve_addresses(2);
+    let receiver = spawn_instance("receiver", addresses[0], &[addresses[1]], 3);
+    thread::sleep(Duration::from_millis(150));
+    let sender = spawn_message_sender(addresses[1], addresses[0], addresses[0], "こんにちは", 2);
+
+    let receiver_output = finish(receiver);
+    let sender_output = finish(sender);
+
+    assert!(
+        sender_output.contains("using Utf8"),
+        "sender did not select negotiated UTF-8:\n{sender_output}"
+    );
+    assert!(
+        receiver_output.contains("こんにちは"),
+        "receiver did not decode the UTF-8 message:\n{receiver_output}"
+    );
+}
+
+#[test]
 fn sender_delivers_message_to_another_cli_instance() {
     let addresses = reserve_addresses(2);
     let receiver = spawn_instance("receiver", addresses[0], &[addresses[1]], 3);
     thread::sleep(Duration::from_millis(150));
-    let sender = spawn_message_sender(addresses[1], addresses[0], addresses[0], 2);
+    let sender = spawn_message_sender(
+        addresses[1],
+        addresses[0],
+        addresses[0],
+        "hello: from cli",
+        2,
+    );
 
     let receiver_output = finish(receiver);
     let sender_output = finish(sender);

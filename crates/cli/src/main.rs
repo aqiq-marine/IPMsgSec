@@ -5,11 +5,11 @@ use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_protocol_core::{
-    MAX_MESSAGE_BODY_BYTES, ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
+    MessageEncoding, ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
 };
 use ipmsgsec_transport_udp::{
-    RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
-    encode_send_message,
+    RECEIVE_BUFFER_SIZE, UdpTransport, decode_text_body, encode_broadcast_entry,
+    encode_broadcast_exit, encode_send_message_with_encoding, encode_text_body,
 };
 
 const DEFAULT_DURATION_SECS: u64 = 30;
@@ -29,7 +29,7 @@ struct Config {
 fn usage() -> &'static str {
     r#"Usage: ipmsgsec-cli --bind <IPv4:port> --announce-to <IPv4:port>...
        --username <ASCII-name> --hostname <ASCII-host>
-       [--send-to <IPv4:port>... --message <ASCII-text>]
+       [--send-to <IPv4:port>... --message <text>]
        [--duration-secs <seconds>]
 
 Example (LAN broadcast and a direct text message):
@@ -109,18 +109,17 @@ where
         return Err("--send-to and --message must be supplied together".to_owned());
     }
     if let Some(body) = &message {
-        let bytes = body.as_bytes();
-        if bytes.is_empty() || bytes.len() > MAX_MESSAGE_BODY_BYTES {
-            return Err(format!(
-                "--message must contain 1..={MAX_MESSAGE_BODY_BYTES} bytes"
-            ));
+        if body.is_empty() {
+            return Err("--message must not be empty".to_owned());
         }
-        if !bytes.is_ascii()
-            || bytes.iter().any(|byte| {
-                *byte == 0 || !(*byte == b'\n' || *byte == b'\t' || (0x20..=0x7e).contains(byte))
-            })
+        if body
+            .chars()
+            .any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t'))
         {
-            return Err("--message must be ASCII printable text (TAB/LF allowed; NUL and other controls are rejected)".to_owned());
+            return Err(
+                "--message may contain only text, TAB, and LF; NUL and other controls are rejected"
+                    .to_owned(),
+            );
         }
     }
 
@@ -176,6 +175,7 @@ fn display_peers(state: &ProtocolState) {
             peer.username().escape_ascii(),
             peer.hostname().escape_ascii()
         );
+        println!("    UTF-8 capability: {}", peer.supports_utf8());
     }
 }
 
@@ -183,14 +183,27 @@ fn display_message(
     sender: ipmsgsec_protocol_core::PeerIdentity<'_>,
     source: SocketAddr,
     body: &[u8],
+    encoding: MessageEncoding,
 ) {
-    println!(
-        "Message from {}@{} via {}: {}",
-        sender.username().escape_ascii(),
-        sender.hostname().escape_ascii(),
-        source,
-        body.escape_ascii()
-    );
+    match decode_text_body(body, encoding) {
+        Ok(text) => println!(
+            "Message from {}@{} via {} ({encoding:?}): {}",
+            sender.username().escape_ascii(),
+            sender.hostname().escape_ascii(),
+            source,
+            text.escape_debug()
+        ),
+        Err(error) => println!(
+            "Message from {}@{} via {} ({encoding:?}, decode error {error:?}): \\x{}",
+            sender.username().escape_ascii(),
+            sender.hostname().escape_ascii(),
+            source,
+            body.iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<Vec<_>>()
+                .join("")
+        ),
+    }
 }
 
 fn run(config: Config) -> Result<(), String> {
@@ -219,21 +232,16 @@ fn run(config: Config) -> Result<(), String> {
         println!("Sent BR_ENTRY to {target}");
     }
 
-    if let Some(body) = &config.message {
-        let packet_number = packet_numbers.take()?;
-        let packet = encode_send_message(
-            packet_number,
-            config.username.as_bytes(),
-            config.hostname.as_bytes(),
-            body.as_bytes(),
-        )
-        .map_err(|error| format!("cannot encode SENDMSG: {error}"))?;
-        for target in &config.send_to {
-            transport
-                .send_to(*target, &packet)
-                .map_err(|error| format!("cannot send SENDMSG to {target}: {error}"))?;
-            println!("Sent SENDMSG to {target}");
-        }
+    let mut pending_send_to = config.send_to.clone();
+    if !pending_send_to.is_empty() {
+        println!(
+            "Waiting for peer capability advertisements before sending to: {}",
+            pending_send_to
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
     }
 
     println!(
@@ -272,8 +280,13 @@ fn run(config: Config) -> Result<(), String> {
             }
         };
 
-        if let ProtocolEvent::MessageReceived { sender, body } = event {
-            display_message(sender, received.source(), body);
+        if let ProtocolEvent::MessageReceived {
+            sender,
+            body,
+            encoding,
+        } = event
+        {
+            display_message(sender, received.source(), body, encoding);
             continue;
         }
 
@@ -292,6 +305,47 @@ fn run(config: Config) -> Result<(), String> {
 
         let changed = transition.peer_outcome != TransitionOutcome::Unchanged;
         state = transition.state;
+
+        if let ProtocolEvent::PeerJoined { supports_utf8, .. } = event
+            && let Some(index) = pending_send_to
+                .iter()
+                .position(|target| *target == received.source())
+            && let Some(body) = &config.message
+        {
+            let target = pending_send_to.remove(index);
+            let encoding = if supports_utf8 {
+                MessageEncoding::Utf8
+            } else {
+                MessageEncoding::Cp932
+            };
+            match encode_text_body(body, encoding) {
+                Ok(encoded_body) => {
+                    let packet_number = packet_numbers.take()?;
+                    match encode_send_message_with_encoding(
+                        packet_number,
+                        config.username.as_bytes(),
+                        config.hostname.as_bytes(),
+                        &encoded_body,
+                        encoding,
+                    ) {
+                        Ok(packet) => match transport.send_to(target, &packet) {
+                            Ok(_) => {
+                                println!("Sent SENDMSG to {target} using {encoding:?}")
+                            }
+                            Err(error) => {
+                                eprintln!("could not send SENDMSG to {target}: {error}")
+                            }
+                        },
+                        Err(error) => {
+                            eprintln!("cannot encode SENDMSG for {target}: {error}")
+                        }
+                    }
+                }
+                Err(error) => {
+                    eprintln!("cannot encode message for {target} using {encoding:?}: {error}")
+                }
+            }
+        }
 
         if let Some(action) = transition.actions.get(0) {
             let packet_number = packet_numbers.take()?;
@@ -318,6 +372,17 @@ fn run(config: Config) -> Result<(), String> {
             }
             display_peers(&state);
         }
+    }
+
+    if !pending_send_to.is_empty() {
+        eprintln!(
+            "message was not sent because no capability advertisement was received from: {}",
+            pending_send_to
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
     }
 
     let exit_number = packet_numbers.take()?;
@@ -447,8 +512,19 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_ascii_and_terminal_controls_in_message() {
-        for body in ["こんにちは", "hello\0world", "hello\u{1b}[31m"] {
+    fn accepts_unicode_message_and_rejects_terminal_controls() {
+        let mut values = args();
+        values.extend(
+            ["--send-to", "127.0.0.1:2427", "--message", "こんにちは"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert_eq!(
+            parse_config(values).unwrap().message.as_deref(),
+            Some("こんにちは")
+        );
+
+        for body in ["hello\0world", "hello\u{1b}[31m"] {
             let mut values = args();
             values.extend(
                 ["--send-to", "127.0.0.1:2427", "--message", body]

@@ -22,7 +22,7 @@ The MVP is a small LAN text messenger, not the whole IP Messenger feature set.
 - IPv4 UDP receive and send on the conventional IP Messenger port (exact configuration and interoperability behavior will be documented as implementation decisions).
 - A bounded parser for the packet subset required by the MVP.
 - Minimal peer discovery and a bounded peer table.
-- Plain-text message send and receive (initial CLI subset: ASCII-only outbound messages, 4 KiB body limit, explicit IPv4 targets).
+- Plain-text message send and receive (UTF-8 capability negotiation with CP932 fallback, 4 KiB encoded-body limit, explicit IPv4 targets).
 - Explicit limits on datagram size, field lengths, and in-memory collections.
 - Deterministic protocol state transitions, separated from socket I/O.
 - Unit tests, adversarial parser tests, and Verus proofs for the pure protocol core.
@@ -127,7 +127,7 @@ Not yet specified. Do not assume that this project is licensed for redistributio
 
 ## Initial implementation baseline
 
-The workspace now includes bounded peer discovery and a conservative ASCII-only text-message CLI. The protocol-core parser and state transition modules are selected by CI's Verus target; the UDP adapter and CLI remain unverified. See:
+The workspace now includes bounded peer discovery and a text-message CLI with UTF-8 capability negotiation and CP932 fallback. The protocol-core parser and state transition modules are selected by CI's Verus target; the UDP adapter and CLI remain unverified. See:
 - [Toolchain setup](docs/toolchain.md)
 - [MVP wire protocol subset](docs/protocol.md)
 - [Protocol core crate](crates/protocol-core/)
@@ -149,7 +149,8 @@ interoperability has already been tested.
 
 ## Text messaging
 
-The CLI can send an unflagged `IPMSG_SENDMSG` packet to explicit IPv4 targets
-and display received message bytes safely. The first increment is ASCII-only;
-UTF-8 negotiation, CP932 conversion, acknowledgements, and retries are not yet
-implemented. See [CLI discovery and messaging](docs/cli-discovery.md).
+The CLI advertises UTF-8 capability during discovery and selects UTF-8 or CP932
+per destination when sending `IPMSG_SENDMSG`. It decodes incoming messages
+according to `IPMSG_UTF8OPT` and displays malformed bytes safely. The UDP
+adapter and CLI remain unverified; acknowledgements, retries, and attachments
+are not yet implemented. See [CLI discovery and messaging](docs/cli-discovery.md).

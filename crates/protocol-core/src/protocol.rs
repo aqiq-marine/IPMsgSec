@@ -13,6 +13,19 @@ verus! {
 /// Maximum plain-text body size for the initial message subset.
 pub const MAX_MESSAGE_BODY_BYTES: usize = 4 * 1024;
 
+/// IPMSG_CAPUTF8OPT: advertised in BR_ENTRY and ANSENTRY command words.
+pub const IPMSG_CAPUTF8OPT: u32 = 0x0100_0000;
+
+/// IPMSG_UTF8OPT: marks a message body encoded as UTF-8.
+pub const IPMSG_UTF8OPT: u32 = 0x0080_0000;
+
+/// Text encoding selected by the wire-level UTF-8 option.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageEncoding {
+    Cp932,
+    Utf8,
+}
+
 /// Distinguishes an unsolicited discovery announcement from its reply.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PeerJoinKind {
@@ -57,11 +70,13 @@ pub enum ProtocolEvent<'a> {
     PeerJoined {
         identity: PeerIdentity<'a>,
         kind: PeerJoinKind,
+        supports_utf8: bool,
     },
     PeerDeparted(PeerIdentity<'a>),
     MessageReceived {
         sender: PeerIdentity<'a>,
         body: &'a [u8],
+        encoding: MessageEncoding,
     },
 }
 
@@ -146,7 +161,7 @@ pub fn classify_packet<'a>(
     }
 
     if let CommandKind::SendMessage = packet.command {
-        if packet.option_flags != 0 {
+        if packet.option_flags & !IPMSG_UTF8OPT != 0 {
             return Err(ProtocolError::UnsupportedMessageOptions);
         }
         if packet.additional_data.is_empty() {
@@ -160,6 +175,22 @@ pub fn classify_packet<'a>(
         }
     }
 
+    let supports_utf8 = match packet.command {
+        CommandKind::BroadcastEntry | CommandKind::AnswerEntry => {
+            if packet.option_flags & !IPMSG_CAPUTF8OPT != 0 {
+                return Err(ProtocolError::InconsistentPacket);
+            }
+            packet.option_flags & IPMSG_CAPUTF8OPT != 0
+        }
+        CommandKind::BroadcastExit => {
+            if packet.option_flags != 0 {
+                return Err(ProtocolError::InconsistentPacket);
+            }
+            false
+        }
+        _ => false,
+    };
+
     let identity = make_identity(packet.username, packet.hostname)?;
 
     let event = match packet.command {
@@ -167,11 +198,13 @@ pub fn classify_packet<'a>(
             ProtocolEvent::PeerJoined {
                 identity,
                 kind: PeerJoinKind::BroadcastEntry,
+                supports_utf8,
             },
         CommandKind::AnswerEntry =>
             ProtocolEvent::PeerJoined {
                 identity,
                 kind: PeerJoinKind::AnswerEntry,
+                supports_utf8,
             },
         CommandKind::BroadcastExit =>
             ProtocolEvent::PeerDeparted(identity),
@@ -179,6 +212,11 @@ pub fn classify_packet<'a>(
             ProtocolEvent::MessageReceived {
                 sender: identity,
                 body: packet.additional_data,
+                encoding: if packet.option_flags & IPMSG_UTF8OPT != 0 {
+                    MessageEncoding::Utf8
+                } else {
+                    MessageEncoding::Cp932
+                },
             },
         CommandKind::Unsupported(command_id) =>
             return Err(ProtocolError::UnsupportedCommand(command_id)),
@@ -229,6 +267,7 @@ mod tests {
                     hostname: b"workstation",
                 },
                 kind: PeerJoinKind::BroadcastEntry,
+                supports_utf8: false,
             })
         );
     }
@@ -244,6 +283,7 @@ mod tests {
                     hostname: b"workstation",
                 },
                 kind: PeerJoinKind::AnswerEntry,
+                supports_utf8: false,
             })
         );
     }
@@ -269,7 +309,9 @@ mod tests {
             ProtocolEvent::MessageReceived {
                 sender,
                 body: actual,
+                encoding,
             } => {
+                assert_eq!(encoding, MessageEncoding::Cp932);
                 assert_eq!(sender.username(), b"alice");
                 assert_eq!(sender.hostname(), b"workstation");
                 assert_eq!(actual, body);
@@ -392,6 +434,61 @@ mod tests {
             }
             other => panic!("unexpected event: {other:?}"),
         }
+    }
+
+    #[test]
+    fn accepts_utf8_capability_on_entry_and_answer_entry_only() {
+        let mut entry = packet(b"alice", b"workstation", CommandKind::BroadcastEntry, b"");
+        entry.command_word = 0x0100_0001;
+        entry.option_flags = IPMSG_CAPUTF8OPT;
+        assert!(matches!(
+            classify_packet(&entry),
+            Ok(ProtocolEvent::PeerJoined {
+                supports_utf8: true,
+                ..
+            })
+        ));
+
+        let mut answer = packet(b"alice", b"workstation", CommandKind::AnswerEntry, b"");
+        answer.command_word = 0x0100_0003;
+        answer.option_flags = IPMSG_CAPUTF8OPT;
+        assert!(matches!(
+            classify_packet(&answer),
+            Ok(ProtocolEvent::PeerJoined {
+                supports_utf8: true,
+                ..
+            })
+        ));
+
+        let mut exit = packet(b"alice", b"workstation", CommandKind::BroadcastExit, b"");
+        exit.command_word = 0x0100_0002;
+        exit.option_flags = IPMSG_CAPUTF8OPT;
+        assert_eq!(
+            classify_packet(&exit),
+            Err(ProtocolError::InconsistentPacket)
+        );
+    }
+
+    #[test]
+    fn recognizes_utf8_and_legacy_message_encodings() {
+        let body = "こんにちは".as_bytes();
+        let mut utf8 = packet(b"alice", b"pc", CommandKind::SendMessage, body);
+        utf8.command_word = 0x0080_0020;
+        utf8.option_flags = IPMSG_UTF8OPT;
+        assert!(matches!(
+            classify_packet(&utf8),
+            Ok(ProtocolEvent::MessageReceived { encoding: MessageEncoding::Utf8, body: actual, .. })
+                if actual == body
+        ));
+
+        let legacy = packet(b"alice", b"pc", CommandKind::SendMessage, b"hello");
+        assert!(matches!(
+            classify_packet(&legacy),
+            Ok(ProtocolEvent::MessageReceived {
+                encoding: MessageEncoding::Cp932,
+                ..
+            })
+        ));
     }
 
     #[test]

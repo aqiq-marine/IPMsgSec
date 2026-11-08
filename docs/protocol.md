@@ -30,16 +30,16 @@ The command field is a 32-bit value represented in decimal text. Its low 8 bits 
 | IPMSG_ANSENTRY | 0x00000003 (3) | Reply to entry |
 | IPMSG_SENDMSG | 0x00000020 (32) | Send a text message |
 
-These command values are confirmed in upstream src/ipmsg.h. The current implementation handles discovery command flags conservatively and accepts only unflagged SENDMSG packets. SENDMSG option flags, including UTF-8 and send-check flags, are rejected until their semantics are implemented. Unsupported option combinations must never be reinterpreted as another command.
+These command values are confirmed in upstream src/ipmsg.h. The implementation accepts `IPMSG_CAPUTF8OPT` only on BR_ENTRY and ANSENTRY discovery packets, and accepts `IPMSG_UTF8OPT` only on SENDMSG. Other SENDMSG flags, including SENDCHECK, remain unsupported. BR_EXIT does not carry the UTF-8 capability flag. Unsupported option combinations must never be reinterpreted as another command.
 
 ## Discovery flow
 
-1. On startup, broadcast IPMSG_BR_ENTRY.
-2. Existing peers add the entrant and reply directly with IPMSG_ANSENTRY.
-3. The new instance adds peers from received IPMSG_ANSENTRY packets.
-4. On shutdown, broadcast IPMSG_BR_EXIT.
+1. On startup, broadcast IPMSG_BR_ENTRY with `IPMSG_CAPUTF8OPT` to advertise UTF-8 message capability.
+2. Existing peers add the entrant and reply directly with IPMSG_ANSENTRY carrying their own `IPMSG_CAPUTF8OPT` capability advertisement.
+3. The new instance records each peer's advertised UTF-8 capability in its bounded peer state.
+4. On shutdown, broadcast IPMSG_BR_EXIT without `IPMSG_CAPUTF8OPT`.
 
-UDP loss is possible. The peer table is an observed peer cache, not authoritative membership. The current state core treats duplicate joins as idempotent no-ops and unknown departures as no-ops. Peer expiration and stale departure/rejoin ordering remain unspecified.
+UDP loss is possible. The peer table is an observed peer cache, not authoritative membership. The peer table keeps one entry per identity. Repeated joins preserve the first-seen timestamp and refresh the advertised capability; unknown departures are no-ops. Peer expiration and stale departure/rejoin ordering remain unspecified.
 
 ## Text messages
 
@@ -50,9 +50,17 @@ Upstream src/ipmsg.h defines:
 - IPMSG_UTF8OPT = 0x00800000: UTF-8 option for a packet/message.
 - IPMSG_SENDCHECKOPT = 0x00000100: request a receive check.
 
-The first text-message implementation deliberately sends ASCII-only bodies without `IPMSG_UTF8OPT`. ASCII has the same byte representation in CP932 and UTF-8, so the initial subset does not need to infer a peer's encoding capability. The CLI rejects non-ASCII outbound text, NUL, and terminal control bytes (TAB and LF are allowed). The core rejects empty bodies, bodies over 4 KiB, and NUL-separated extension payloads, independently of the 8 KiB datagram bound. Received message bytes remain opaque; the CLI renders them with byte escaping rather than assuming UTF-8 or emitting terminal control sequences.
+The CLI chooses the message encoding per destination:
+- If the destination has advertised `IPMSG_CAPUTF8OPT`, send the body as UTF-8 and set `IPMSG_UTF8OPT`.
+- Otherwise, encode the body as CP932 and leave `IPMSG_UTF8OPT` clear.
+- The receiver chooses UTF-8 or CP932 strictly from the incoming SENDMSG option flag. It does not guess or retry with another encoding if decoding fails.
+- Both encoders enforce the 4 KiB encoded-body limit, reject NUL and terminal control characters (TAB/LF are allowed), and preserve the 8 KiB datagram bound.
+- Malformed UTF-8 or CP932 is reported as a decoding error; the CLI displays the raw bytes as hexadecimal rather than silently inserting replacement characters.
+- A message is sent only after the explicit destination has been observed in a discovery packet, so the sender has a capability advertisement. Unknown capability is not treated as UTF-8 support.
 
-This is a conservative interoperability subset, not full multilingual support. UTF-8 capability advertisement (`IPMSG_CAPUTF8OPT`) and per-message `IPMSG_UTF8OPT` negotiation are deferred until peer capability is represented in the protocol state. CP932 encoding/decoding for peers without UTF-8 capability is also deferred. The first increment does not request `IPMSG_SENDCHECKOPT`, send `IPMSG_RECVMSG` acknowledgements, implement retries, or interpret NUL-separated attachment extensions.
+The upstream protocol draft specifies that `IPMSG_CAPUTF8OPT` is advertised on BR_ENTRY, ANSENTRY, and BR_ABSENCE. This implementation supports the first two commands; BR_ABSENCE is not in the current command subset. The draft also states that BR-family packets must not set `IPMSG_UTF8OPT`; for non-ASCII identity/group metadata it defines a separate UTF-8 text extension after the legacy group extension. The current CLI continues to restrict username and hostname fields to ASCII and does not implement that metadata extension.
+
+The first UTF-8 increment does not request `IPMSG_SENDCHECKOPT`, send `IPMSG_RECVMSG` acknowledgements, implement retries, or interpret NUL-separated attachment extensions. The protocol-core models capability and message-encoding decisions; the encoding_rs conversion, UDP adapter, and CLI remain unverified boundaries.
 
 ## Parser requirements
 
@@ -85,7 +93,7 @@ Additional requirements:
 - Whether entry/exit broadcasts target limited broadcast, directed broadcast, or both.
 - Whether the app binds all interfaces or a selected interface.
 - Exact identity-field encoding and validation.
-- UTF-8 behavior with older/non-UTF-8 peers.
+- Non-ASCII identity/group metadata and the BR-family UTF-8 metadata extension.
 - Whether empty additional data is accepted for each command.
 - Packet-number generation and collision policy.
 - Peer expiration and duplicate/reordered event semantics.

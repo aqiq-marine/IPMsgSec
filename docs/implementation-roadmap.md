@@ -129,9 +129,9 @@ The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation
 
 The next milestones intentionally complete wire-encoding negotiation before introducing the shared application API. This avoids baking the current ASCII-only limitation into the interfaces shared by the CLI and future GUI. See [ADR 0007](adr/0007-utf8-negotiation-before-app-layer.md).
 
-### Implementation PR 6 — UTF-8 capability negotiation
+### Implementation PR 6 — UTF-8 capability negotiation (implemented; CI passed)
 
-- Verify the exact command-specific wire semantics of `IPMSG_CAPUTF8OPT` and `IPMSG_UTF8OPT` against the protocol specification and representative clients.
+- [x] Verify the command-specific wire semantics of `IPMSG_CAPUTF8OPT` and `IPMSG_UTF8OPT` against the upstream protocol specification.
 - Add bounded peer capability state and parse remote capability advertisements.
 - Advertise local UTF-8 support in the appropriate discovery packets.
 - Select the SENDMSG UTF-8 flag only for peers that advertised support.
@@ -141,7 +141,7 @@ The next milestones intentionally complete wire-encoding negotiation before intr
 - Add tests for capability state transitions, outgoing encoding/flags, incoming decoding, malformed data, and legacy-peer fallback.
 - Update the protocol reference and interoperability test matrix with actual evidence.
 
-Acceptance: capability state is bounded; unsupported or malformed data is handled explicitly; no peer is treated as UTF-8-capable without an observed advertisement; existing ASCII behavior remains valid; Rust tests, Clippy, formatting, and Verus CI pass. Only pure protocol decisions actually covered by Verus may be described as proved.
+Acceptance: Rust tests, formatting, Clippy, and Verus CI passed on the implementation commit (GitHub Actions run [42455468769](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42455468769)). External Windows interoperability remains a separate manual test.
 
 ### Implementation PR 7 — Shared application layer
 

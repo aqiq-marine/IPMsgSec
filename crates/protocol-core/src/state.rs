@@ -12,6 +12,7 @@ pub struct Peer {
     username: Vec<u8>,
     hostname: Vec<u8>,
     first_seen_at: u64,
+    supports_utf8: bool,
 }
 
 impl Peer {
@@ -26,6 +27,10 @@ impl Peer {
     pub fn first_seen_at(&self) -> u64 {
         self.first_seen_at
     }
+
+    pub fn supports_utf8(&self) -> bool {
+        self.supports_utf8
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -39,6 +44,7 @@ pub enum PeerEvent<'a> {
         username: &'a [u8],
         hostname: &'a [u8],
         observed_at: u64,
+        supports_utf8: bool,
     },
     Departed {
         username: &'a [u8],
@@ -57,6 +63,7 @@ pub enum TransitionOutcome {
     Added,
     Removed,
     Unchanged,
+    Updated,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -184,11 +191,13 @@ fn copy_peer(peer: &Peer) -> (result: Peer)
         result.username@ == peer.username@,
         result.hostname@ == peer.hostname@,
         result.first_seen_at == peer.first_seen_at,
+        result.supports_utf8 == peer.supports_utf8,
 {
     Peer {
         username: copy_bytes(peer.username.as_slice()),
         hostname: copy_bytes(peer.hostname.as_slice()),
         first_seen_at: peer.first_seen_at,
+        supports_utf8: peer.supports_utf8,
     }
 }
 
@@ -200,7 +209,8 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         forall|i: int| 0 <= i < state.peers@.len() ==>
             result.peers@[i].username@ == state.peers@[i].username@
             && result.peers@[i].hostname@ == state.peers@[i].hostname@
-            && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at,
+            && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at
+            && result.peers@[i].supports_utf8 == state.peers@[i].supports_utf8,
         peer_state_well_formed(&result),
 {
     let mut peers: Vec<Peer> = Vec::new();
@@ -212,7 +222,8 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
             forall|j: int| 0 <= j < index as int ==>
                 peers@[j].username@ == state.peers@[j].username@
                 && peers@[j].hostname@ == state.peers@[j].hostname@
-                && peers@[j].first_seen_at == state.peers@[j].first_seen_at,
+                && peers@[j].first_seen_at == state.peers@[j].first_seen_at
+                && peers@[j].supports_utf8 == state.peers@[j].supports_utf8,
         decreases
             state.peers.len() - index,
     {
@@ -227,6 +238,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         result.peers@[i].username@ == state.peers@[i].username@
         && result.peers@[i].hostname@ == state.peers@[i].hostname@
         && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at
+        && result.peers@[i].supports_utf8 == state.peers@[i].supports_utf8
     by {
         assert(i < result.peers@.len());
     }
@@ -258,6 +270,7 @@ fn append_peer(
     username: &[u8],
     hostname: &[u8],
     observed_at: u64,
+    supports_utf8: bool,
 ) -> (result: PeerState)
     requires
         peer_state_well_formed(state),
@@ -278,6 +291,7 @@ fn append_peer(
         username: copied_username,
         hostname: copied_hostname,
         first_seen_at: observed_at,
+        supports_utf8,
     });
 
     reveal(peer_state_well_formed);
@@ -410,20 +424,27 @@ pub fn apply_event(
             username,
             hostname,
             observed_at,
+            supports_utf8,
         } => {
             match found {
-                Some(_index) => {
-                    let next = copy_state(state);
+                Some(index) => {
+                    let mut next = copy_state(state);
+                    let changed = next.peers[index].supports_utf8 != supports_utf8;
+                    next.peers[index].supports_utf8 = supports_utf8;
                     Ok(TransitionResult {
                         state: next,
-                        outcome: TransitionOutcome::Unchanged,
+                        outcome: if changed {
+                            TransitionOutcome::Updated
+                        } else {
+                            TransitionOutcome::Unchanged
+                        },
                     })
                 }
                 None => {
                     if state.peers.len() >= MAX_PEERS {
                         return Err(StateError::TableFull);
                     }
-                    let next = append_peer(state, username, hostname, observed_at);
+                    let next = append_peer(state, username, hostname, observed_at, supports_utf8);
                     Ok(TransitionResult {
                         state: next,
                         outcome: TransitionOutcome::Added,
@@ -460,6 +481,7 @@ mod tests {
             username,
             hostname,
             observed_at,
+            supports_utf8: false,
         }
     }
 
@@ -496,6 +518,36 @@ mod tests {
         let second = apply_event(&first.state, joined(b"alice", b"pc", 10)).unwrap();
         assert_eq!(second.outcome, TransitionOutcome::Unchanged);
         assert_eq!(second.state.peers()[0].first_seen_at(), 20);
+    }
+
+    #[test]
+    fn duplicate_join_updates_capability_without_resetting_first_seen() {
+        let state = PeerState::empty();
+        let first = apply_event(
+            &state,
+            PeerEvent::Joined {
+                username: b"alice",
+                hostname: b"pc",
+                observed_at: 10,
+                supports_utf8: false,
+            },
+        )
+        .unwrap();
+        let updated = apply_event(
+            &first.state,
+            PeerEvent::Joined {
+                username: b"alice",
+                hostname: b"pc",
+                observed_at: 20,
+                supports_utf8: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(updated.outcome, TransitionOutcome::Updated);
+        assert_eq!(updated.state.peers()[0].first_seen_at(), 10);
+        assert!(updated.state.peers()[0].supports_utf8());
+        assert!(!first.state.peers()[0].supports_utf8());
     }
 
     #[test]
