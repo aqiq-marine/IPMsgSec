@@ -5,10 +5,11 @@ use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_protocol_core::{
-    ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
+    MAX_MESSAGE_BODY_BYTES, ProtocolEvent, ProtocolState, TransitionOutcome, apply_discovery_event,
 };
 use ipmsgsec_transport_udp::{
     RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_broadcast_exit,
+    encode_send_message,
 };
 
 const DEFAULT_DURATION_SECS: u64 = 30;
@@ -18,6 +19,8 @@ const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(200);
 struct Config {
     bind: SocketAddr,
     announce_to: Vec<SocketAddr>,
+    send_to: Vec<SocketAddr>,
+    message: Option<String>,
     username: String,
     hostname: String,
     duration: Duration,
@@ -25,10 +28,13 @@ struct Config {
 
 fn usage() -> &'static str {
     r#"Usage: ipmsgsec-cli --bind <IPv4:port> --announce-to <IPv4:port>...
-       --username <ASCII-name> --hostname <ASCII-host> [--duration-secs <seconds>]
+       --username <ASCII-name> --hostname <ASCII-host>
+       [--send-to <IPv4:port>... --message <ASCII-text>]
+       [--duration-secs <seconds>]
 
-Example (LAN broadcast):
+Example (LAN broadcast and a direct text message):
   ipmsgsec-cli --bind 0.0.0.0:2425 --announce-to 255.255.255.255:2425 \
+    --send-to 192.0.2.20:2425 --message "Hello from IPMsgSec" \
     --username alice --hostname workstation
 
 Each --announce-to may be repeated. For same-host tests, bind each instance
@@ -42,6 +48,8 @@ where
     let mut args = args.into_iter();
     let mut bind = None;
     let mut announce_to = Vec::new();
+    let mut send_to = Vec::new();
+    let mut message = None;
     let mut username = None;
     let mut hostname = None;
     let mut duration_secs = DEFAULT_DURATION_SECS;
@@ -64,6 +72,12 @@ where
                         .map_err(|e| format!("invalid --announce-to: {e}"))?,
                 );
             }
+            "--send-to" => {
+                send_to.push(
+                    SocketAddr::from_str(&value).map_err(|e| format!("invalid --send-to: {e}"))?,
+                );
+            }
+            "--message" => message = Some(value),
             "--username" => username = Some(value),
             "--hostname" => hostname = Some(value),
             "--duration-secs" => {
@@ -88,6 +102,27 @@ where
     if announce_to.iter().any(|address| !address.is_ipv4()) {
         return Err("all --announce-to addresses must be IPv4".to_owned());
     }
+    if send_to.iter().any(|address| !address.is_ipv4()) {
+        return Err("all --send-to addresses must be IPv4".to_owned());
+    }
+    if send_to.is_empty() != message.is_none() {
+        return Err("--send-to and --message must be supplied together".to_owned());
+    }
+    if let Some(body) = &message {
+        let bytes = body.as_bytes();
+        if bytes.is_empty() || bytes.len() > MAX_MESSAGE_BODY_BYTES {
+            return Err(format!(
+                "--message must contain 1..={MAX_MESSAGE_BODY_BYTES} bytes"
+            ));
+        }
+        if !bytes.is_ascii()
+            || bytes.iter().any(|byte| {
+                *byte == 0 || !(*byte == b'\n' || *byte == b'\t' || (0x20..=0x7e).contains(byte))
+            })
+        {
+            return Err("--message must be ASCII printable text (TAB/LF allowed; NUL and other controls are rejected)".to_owned());
+        }
+    }
 
     let username = username.ok_or_else(|| "--username is required".to_owned())?;
     let hostname = hostname.ok_or_else(|| "--hostname is required".to_owned())?;
@@ -102,6 +137,8 @@ where
     Ok(Config {
         bind,
         announce_to,
+        send_to,
+        message,
         username,
         hostname,
         duration: Duration::from_secs(duration_secs),
@@ -136,10 +173,24 @@ fn display_peers(state: &ProtocolState) {
     for peer in state.peers().peers() {
         println!(
             "  {}@{}",
-            String::from_utf8_lossy(peer.username()),
-            String::from_utf8_lossy(peer.hostname())
+            peer.username().escape_ascii(),
+            peer.hostname().escape_ascii()
         );
     }
+}
+
+fn display_message(
+    sender: ipmsgsec_protocol_core::PeerIdentity<'_>,
+    source: SocketAddr,
+    body: &[u8],
+) {
+    println!(
+        "Message from {}@{} via {}: {}",
+        sender.username().escape_ascii(),
+        sender.hostname().escape_ascii(),
+        source,
+        body.escape_ascii()
+    );
 }
 
 fn run(config: Config) -> Result<(), String> {
@@ -166,6 +217,23 @@ fn run(config: Config) -> Result<(), String> {
             .send_to(*target, &entry)
             .map_err(|error| format!("cannot send BR_ENTRY to {target}: {error}"))?;
         println!("Sent BR_ENTRY to {target}");
+    }
+
+    if let Some(body) = &config.message {
+        let packet_number = packet_numbers.take()?;
+        let packet = encode_send_message(
+            packet_number,
+            config.username.as_bytes(),
+            config.hostname.as_bytes(),
+            body.as_bytes(),
+        )
+        .map_err(|error| format!("cannot encode SENDMSG: {error}"))?;
+        for target in &config.send_to {
+            transport
+                .send_to(*target, &packet)
+                .map_err(|error| format!("cannot send SENDMSG to {target}: {error}"))?;
+            println!("Sent SENDMSG to {target}");
+        }
     }
 
     println!(
@@ -204,6 +272,11 @@ fn run(config: Config) -> Result<(), String> {
             }
         };
 
+        if let ProtocolEvent::MessageReceived { sender, body } = event {
+            display_message(sender, received.source(), body);
+            continue;
+        }
+
         let transition = match apply_discovery_event(
             &state,
             &event,
@@ -241,7 +314,7 @@ fn run(config: Config) -> Result<(), String> {
                 ProtocolEvent::PeerDeparted(_) => {
                     println!("Peer departed from {}", received.source())
                 }
-                ProtocolEvent::MessageReceived { .. } => {}
+                ProtocolEvent::MessageReceived { .. } => unreachable!("handled above"),
             }
             display_peers(&state);
         }
@@ -343,6 +416,47 @@ mod tests {
         let index = values.iter().position(|value| value == "alice").unwrap();
         values[index] = "alice:admin".to_owned();
         assert!(parse_config(values).is_err());
+    }
+
+    #[test]
+    fn requires_send_target_and_message_as_a_pair() {
+        let mut values = args();
+        values.extend(["--message", "hello"].into_iter().map(str::to_owned));
+        assert!(parse_config(values).is_err());
+
+        let mut values = args();
+        values.extend(
+            ["--send-to", "127.0.0.1:2427"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert!(parse_config(values).is_err());
+    }
+
+    #[test]
+    fn accepts_explicit_ascii_message_targets() {
+        let mut values = args();
+        values.extend(
+            ["--send-to", "127.0.0.1:2427", "--message", "hello: world"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        let config = parse_config(values).unwrap();
+        assert_eq!(config.send_to, vec!["127.0.0.1:2427".parse().unwrap()]);
+        assert_eq!(config.message.as_deref(), Some("hello: world"));
+    }
+
+    #[test]
+    fn rejects_non_ascii_and_terminal_controls_in_message() {
+        for body in ["こんにちは", "hello\0world", "hello\u{1b}[31m"] {
+            let mut values = args();
+            values.extend(
+                ["--send-to", "127.0.0.1:2427", "--message", body]
+                    .into_iter()
+                    .map(str::to_owned),
+            );
+            assert!(parse_config(values).is_err(), "accepted {body:?}");
+        }
     }
 
     #[test]

@@ -30,7 +30,7 @@ The command field is a 32-bit value represented in decimal text. Its low 8 bits 
 | IPMSG_ANSENTRY | 0x00000003 (3) | Reply to entry |
 | IPMSG_SENDMSG | 0x00000020 (32) | Send a text message |
 
-These command values are confirmed in upstream src/ipmsg.h. MVP initially supports these command kinds without optional flags, except UTF-8 capability negotiation described below. Unsupported option combinations must be rejected or ignored according to an explicit policy; never reinterpret them as another command.
+These command values are confirmed in upstream src/ipmsg.h. The current implementation handles discovery command flags conservatively and accepts only unflagged SENDMSG packets. SENDMSG option flags, including UTF-8 and send-check flags, are rejected until their semantics are implemented. Unsupported option combinations must never be reinterpreted as another command.
 
 ## Discovery flow
 
@@ -50,7 +50,9 @@ Upstream src/ipmsg.h defines:
 - IPMSG_UTF8OPT = 0x00800000: UTF-8 option for a packet/message.
 - IPMSG_SENDCHECKOPT = 0x00000100: request a receive check.
 
-The first implementation should prefer UTF-8-capable peers and explicitly negotiate/mark UTF-8 according to the protocol. Exact encoding rules for identity fields and compatibility with peers that do not advertise UTF-8 must be settled before claiming interoperability with those peers. Do not assume all legacy peers use UTF-8.
+The first text-message implementation deliberately sends ASCII-only bodies without `IPMSG_UTF8OPT`. ASCII has the same byte representation in CP932 and UTF-8, so the initial subset does not need to infer a peer's encoding capability. The CLI rejects non-ASCII outbound text, NUL, and terminal control bytes (TAB and LF are allowed). The core rejects empty bodies, bodies over 4 KiB, and NUL-separated extension payloads, independently of the 8 KiB datagram bound. Received message bytes remain opaque; the CLI renders them with byte escaping rather than assuming UTF-8 or emitting terminal control sequences.
+
+This is a conservative interoperability subset, not full multilingual support. UTF-8 capability advertisement (`IPMSG_CAPUTF8OPT`) and per-message `IPMSG_UTF8OPT` negotiation are deferred until peer capability is represented in the protocol state. CP932 encoding/decoding for peers without UTF-8 capability is also deferred. The first increment does not request `IPMSG_SENDCHECKOPT`, send `IPMSG_RECVMSG` acknowledgements, implement retries, or interpret NUL-separated attachment extensions.
 
 ## Parser requirements
 

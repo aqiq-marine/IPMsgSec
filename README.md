@@ -22,7 +22,7 @@ The MVP is a small LAN text messenger, not the whole IP Messenger feature set.
 - IPv4 UDP receive and send on the conventional IP Messenger port (exact configuration and interoperability behavior will be documented as implementation decisions).
 - A bounded parser for the packet subset required by the MVP.
 - Minimal peer discovery and a bounded peer table.
-- Plain-text message send and receive.
+- Plain-text message send and receive (initial CLI subset: ASCII-only outbound messages, 4 KiB body limit, explicit IPv4 targets).
 - Explicit limits on datagram size, field lengths, and in-memory collections.
 - Deterministic protocol state transitions, separated from socket I/O.
 - Unit tests, adversarial parser tests, and Verus proofs for the pure protocol core.
@@ -127,7 +127,7 @@ Not yet specified. Do not assume that this project is licensed for redistributio
 
 ## Initial implementation baseline
 
-The initial workspace and verification smoke test are now present. See:
+The workspace now includes bounded peer discovery and a conservative ASCII-only text-message CLI. The protocol-core parser and state transition modules are selected by CI's Verus target; the UDP adapter and CLI remain unverified. See:
 - [Toolchain setup](docs/toolchain.md)
 - [MVP wire protocol subset](docs/protocol.md)
 - [Protocol core crate](crates/protocol-core/)
@@ -135,7 +135,7 @@ The initial workspace and verification smoke test are now present. See:
 - [Runtime packet parser](crates/protocol-core/src/parser.rs)
 - [CI workflow](.github/workflows/ci.yml)
 
-The smoke proof checks bounded offset arithmetic only. The runtime parser has unit tests, but its Verus proof and the CI run for the current revision are still pending. No end-to-end security theorem is claimed.
+The smoke proof checks bounded offset arithmetic. CI also verifies the runtime protocol-core target. No end-to-end security theorem is claimed; socket behavior, delivery, peer authenticity, and CLI behavior remain outside the proof boundary.
 
 
 ## CLI peer discovery
@@ -146,3 +146,10 @@ explicit bind and announcement destinations; see
 examples, same-host multi-instance tests, trust boundaries, and the selected
 external interoperability target. This does not imply that external-client
 interoperability has already been tested.
+
+## Text messaging
+
+The CLI can send an unflagged `IPMSG_SENDMSG` packet to explicit IPv4 targets
+and display received message bytes safely. The first increment is ASCII-only;
+UTF-8 negotiation, CP932 conversion, acknowledgements, and retries are not yet
+implemented. See [CLI discovery and messaging](docs/cli-discovery.md).

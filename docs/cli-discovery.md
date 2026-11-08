@@ -8,8 +8,9 @@ classification, and peer-state transitions to `ipmsgsec-protocol-core`.
 The CLI itself, packet-number generation, clock use, OS routing, and network
 delivery are not covered by Verus proofs.
 
-This milestone implements IPv4 peer discovery only. It does not implement
-message sending, authentication, encryption, persistence, or peer expiration.
+The CLI now supports IPv4 peer discovery and a narrow plain-text messaging
+subset. It does not implement authentication, encryption, persistence, peer
+expiration, delivery acknowledgements, retries, or file attachments.
 
 ## Explicit network configuration
 
@@ -68,6 +69,40 @@ ANSENTRY replies, and normal-shutdown BR_EXIT processing; another starts three
 instances and checks that each observes the other two. These tests exercise
 the local host's UDP behavior, not subnet broadcast or external-client
 interoperability.
+
+## Text messaging
+
+To send a message to an explicit IPv4 UDP endpoint, add both `--send-to`
+and `--message` (repeat `--send-to` to send the same message to several
+destinations):
+
+```sh
+cargo run -p ipmsgsec-cli -- --bind 0.0.0.0:2425 \
+  --announce-to 255.255.255.255:2425 \
+  --send-to 192.0.2.20:2425 --message "Hello from IPMsgSec" \
+  --username alice --hostname workstation
+```
+
+The CLI sends one unflagged `IPMSG_SENDMSG` packet to each explicit target
+when it starts, then continues listening for the configured duration.
+The receiver displays the sender identity, source address, and byte-escaped
+message body. It does not automatically trust a message sender as a peer,
+and it does not send `IPMSG_RECVMSG` acknowledgements.
+
+Outbound bodies are restricted to non-empty ASCII, at most 4096 bytes.
+Printable ASCII, TAB, and LF are accepted; NUL and other control bytes are
+rejected. The receiver also rejects empty bodies, bodies over 4096 bytes,
+NUL-separated extension payloads, and SENDMSG packets with option flags.
+This avoids guessing between CP932 and UTF-8 because ASCII has the same
+representation in both. Non-ASCII messages, UTF-8 capability
+advertisement/negotiation, CP932 conversion, acknowledgements, retries, and
+attachment extensions remain future work. Incoming bytes are not decoded as
+UTF-8: they are escaped for terminal-safe display, so non-ASCII text may not
+be human-readable yet.
+
+The message target is an explicit socket address, not a peer-table selection.
+The current peer table stores identities but not authenticated network
+endpoints; source IP addresses are unauthenticated UDP metadata.
 
 ## Packet handling
 

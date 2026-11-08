@@ -143,3 +143,16 @@ For commit `7196eb70a6d3267960403879d0f72309a98f54bc`, [CI run 42449096346](http
 - Formatting and Clippy: passed.
 
 The peer-state proof covers the state invariant and its preservation by copying, bounded insertion, and removal. This is not a proof of UDP behavior, peer freshness, event ordering, or whole-process security.
+
+
+## PR 5 text-message increment evidence
+
+For commit `2f160c6271ac88df7178859b35861e36542af672`, [CI run 42453299265](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42453299265) completed successfully:
+
+- Standalone smoke proof: 2 verified, 0 errors.
+- Parser proof target: 2,159 verified, 0 errors.
+- Runtime protocol-core verification target: 57 verified, 0 errors.
+- Rust tests: 67 passed across the workspace, including CLI subprocess discovery and text-message delivery tests.
+- Formatting and Clippy: passed.
+
+The added message-size, option-flag, empty-body, and NUL-extension checks are part of the runtime protocol-core source. The UDP encoder and CLI remain unverified. The loopback message-delivery test establishes local UDP composition only; it does not establish delivery over a real LAN or compatibility with external IP Messenger clients.

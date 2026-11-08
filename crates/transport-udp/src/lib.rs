@@ -9,8 +9,8 @@ use std::io;
 use std::net::{SocketAddr, UdpSocket};
 
 use ipmsgsec_protocol_core::{
-    BoundedDatagram, MAX_IDENTITY_BYTES, MAX_PACKET_SIZE, ParseError, ProtocolAction,
-    ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
+    BoundedDatagram, MAX_IDENTITY_BYTES, MAX_MESSAGE_BODY_BYTES, MAX_PACKET_SIZE, ParseError,
+    ProtocolAction, ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
 };
 
 /// Conventional IP Messenger UDP port. Binding remains an explicit caller choice.
@@ -137,6 +137,11 @@ pub enum EncodeError {
     EmptyIdentity,
     IdentityTooLong,
     ContainsDelimiter,
+    EmptyMessage,
+    MessageTooLong,
+    NonAsciiMessage,
+    ContainsNul,
+    UnsupportedControl,
     PacketTooLarge,
 }
 
@@ -149,6 +154,20 @@ impl std::fmt::Display for EncodeError {
                 "username and hostname must each be at most {MAX_IDENTITY_BYTES} bytes"
             ),
             Self::ContainsDelimiter => write!(f, "identity fields cannot contain ':'"),
+            Self::EmptyMessage => write!(f, "message body must not be empty"),
+            Self::MessageTooLong => write!(
+                f,
+                "message body must be at most {MAX_MESSAGE_BODY_BYTES} bytes"
+            ),
+            Self::NonAsciiMessage => write!(
+                f,
+                "message body must be ASCII until UTF-8 negotiation is implemented"
+            ),
+            Self::ContainsNul => write!(f, "message body cannot contain NUL in the plain-text MVP"),
+            Self::UnsupportedControl => write!(
+                f,
+                "message body may contain only printable ASCII, TAB, and LF"
+            ),
             Self::PacketTooLarge => write!(f, "encoded packet exceeds {MAX_PACKET_SIZE} bytes"),
         }
     }
@@ -220,6 +239,44 @@ pub fn encode_broadcast_exit(
     hostname: &[u8],
 ) -> Result<Vec<u8>, EncodeError> {
     encode_identity_command(packet_number, username, hostname, 2)
+}
+
+/// Encode an unflagged IPMSG_SENDMSG packet (command 32).
+///
+/// The initial interoperable subset is ASCII-only. ASCII is represented
+/// identically by CP932 and UTF-8, so this does not require advertising or
+/// assuming IPMSG_CAPUTF8OPT. NUL-separated attachment extensions and
+/// SENDCHECK acknowledgements are deliberately not implemented.
+pub fn encode_send_message(
+    packet_number: u64,
+    username: &[u8],
+    hostname: &[u8],
+    body: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
+    if body.is_empty() {
+        return Err(EncodeError::EmptyMessage);
+    }
+    if body.len() > MAX_MESSAGE_BODY_BYTES {
+        return Err(EncodeError::MessageTooLong);
+    }
+    if !body.is_ascii() {
+        return Err(EncodeError::NonAsciiMessage);
+    }
+    for byte in body {
+        if *byte == 0 {
+            return Err(EncodeError::ContainsNul);
+        }
+        if !(*byte == b'\n' || *byte == b'\t' || (0x20..=0x7e).contains(byte)) {
+            return Err(EncodeError::UnsupportedControl);
+        }
+    }
+
+    let mut packet = encode_identity_command(packet_number, username, hostname, 32)?;
+    if packet.len().saturating_add(body.len()) > MAX_PACKET_SIZE {
+        return Err(EncodeError::PacketTooLarge);
+    }
+    packet.extend_from_slice(body);
+    Ok(packet)
 }
 
 /// A deliberately small UDP socket adapter.
@@ -375,6 +432,63 @@ mod tests {
             classify_packet(&parsed_exit),
             Ok(ProtocolEvent::PeerDeparted(_))
         ));
+    }
+
+    #[test]
+    fn encodes_ascii_send_message_and_round_trips_through_core() {
+        let bytes =
+            encode_send_message(123, b"alice", b"workstation", b"hello: world\nnext").unwrap();
+        let packet = parse_packet(&bytes).unwrap();
+        assert_eq!(packet.packet_number, 123);
+        assert_eq!(packet.username, b"alice");
+        assert_eq!(packet.hostname, b"workstation");
+        assert_eq!(packet.command, CommandKind::SendMessage);
+        assert_eq!(packet.command_word, 32);
+        assert_eq!(packet.option_flags, 0);
+        assert_eq!(packet.additional_data, b"hello: world\nnext");
+        assert!(matches!(
+            classify_packet(&packet),
+            Ok(ProtocolEvent::MessageReceived { body, .. })
+                if body == b"hello: world\nnext"
+        ));
+    }
+
+    #[test]
+    fn rejects_empty_oversized_or_non_ascii_message() {
+        assert_eq!(
+            encode_send_message(1, b"alice", b"pc", b""),
+            Err(EncodeError::EmptyMessage)
+        );
+        let oversized = vec![b'a'; MAX_MESSAGE_BODY_BYTES + 1];
+        assert_eq!(
+            encode_send_message(1, b"alice", b"pc", &oversized),
+            Err(EncodeError::MessageTooLong)
+        );
+        assert_eq!(
+            encode_send_message(1, b"alice", b"pc", "こんにちは".as_bytes()),
+            Err(EncodeError::NonAsciiMessage)
+        );
+    }
+
+    #[test]
+    fn rejects_nul_and_terminal_control_bytes_in_message() {
+        assert_eq!(
+            encode_send_message(1, b"alice", b"pc", b"hello\0world"),
+            Err(EncodeError::ContainsNul)
+        );
+        assert_eq!(
+            encode_send_message(1, b"alice", b"pc", b"hello\x1b[31m"),
+            Err(EncodeError::UnsupportedControl)
+        );
+    }
+
+    #[test]
+    fn rejects_message_over_body_limit_before_datagram_limit() {
+        let body = vec![b'a'; MAX_PACKET_SIZE];
+        assert_eq!(
+            encode_send_message(1, b"alice", b"pc", &body),
+            Err(EncodeError::MessageTooLong)
+        );
     }
 
     #[test]
