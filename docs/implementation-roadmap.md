@@ -154,7 +154,7 @@ Acceptance: Rust tests, formatting, Clippy, and Verus CI passed on the implement
 
 Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on PR #8 (run [42456163187](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42456163187)). The protocol-core proof boundary is unchanged; the application crate itself remains unverified.
 
-### Implementation PR 8 — Session lifecycle and event distribution (implemented; CI pending)
+### Implementation PR 8 — Session lifecycle and event distribution (implemented; CI passed)
 
 - [x] Give one worker thread sole ownership of the UDP transport, application session, packet-number allocator, and observed peer endpoint map.
 - [x] Define bounded commands for discovery, message submission, and snapshots, with explicit full-queue errors.
@@ -164,7 +164,7 @@ Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on P
 - [x] Keep the synchronous UDP implementation and standard channels; no async runtime added.
 - [x] Refactor the CLI to use ApplicationService rather than owning UdpTransport or ProtocolState.
 
-Acceptance: Rust tests and CLI subprocess integration tests must pass; formatting, Clippy, and the unchanged protocol-core Verus target must pass. Worker and application code remain unverified.
+Acceptance: Rust tests (80 passed), CLI subprocess integration tests, formatting, Clippy, and the unchanged protocol-core Verus target passed on PR #9 (run [42457026720](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42457026720)). Worker and application code remain unverified.
 
 ### Implementation PR 9 — Tauri 2 GUI MVP
 
