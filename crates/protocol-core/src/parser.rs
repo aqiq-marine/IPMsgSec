@@ -126,7 +126,8 @@ pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseErr
     ensures
         match result {
             Ok(packet) =>
-                packet.version == 1
+                bytes.len() <= MAX_PACKET_SIZE
+                && packet.version == 1
                 && packet.username.len() > 0
                 && packet.hostname.len() > 0
                 && packet.additional_data.len() <= MAX_PACKET_SIZE
