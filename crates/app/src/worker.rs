@@ -10,7 +10,7 @@ use std::sync::mpsc::{
     self, Receiver, RecvTimeoutError, SyncSender, TryRecvError, TrySendError,
 };
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_transport_udp::{
     RECEIVE_BUFFER_SIZE, ReceiveError, UdpTransport, encode_broadcast_entry,
@@ -97,6 +97,9 @@ pub enum ServiceError {
     WorkerStopped,
     WorkerPanicked,
     OperationFailed,
+    PeerNotObserved,
+    MessageEncodingFailed,
+    DatagramSendFailed,
 }
 
 impl std::fmt::Display for ServiceError {
@@ -108,6 +111,9 @@ impl std::fmt::Display for ServiceError {
             Self::WorkerStopped => write!(f, "application worker has stopped"),
             Self::WorkerPanicked => write!(f, "application worker panicked"),
             Self::OperationFailed => write!(f, "application operation failed"),
+            Self::PeerNotObserved => write!(f, "target is not a currently observed peer"),
+            Self::MessageEncodingFailed => write!(f, "message cannot be encoded for the target peer"),
+            Self::DatagramSendFailed => write!(f, "UDP datagram could not be submitted"),
         }
     }
 }
@@ -192,6 +198,8 @@ impl ApplicationService {
             || config.announce_to.iter().any(|address| !address.is_ipv4())
             || config.username.is_empty()
             || config.hostname.is_empty()
+            || config.username.len() > 64
+            || config.hostname.len() > 64
             || config.username.contains(&b':')
             || config.hostname.contains(&b':')
         {
@@ -355,6 +363,7 @@ fn run_worker(
 ) {
     let mut dropped_events = 0_u64;
     let mut packet_numbers = PacketNumbers::new();
+    let started = Instant::now();
     let mut session = ApplicationSession::new();
     let mut peers: HashMap<SocketAddr, PeerInfo> = HashMap::new();
     let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
@@ -390,7 +399,7 @@ fn run_worker(
                 }
                 Ok(WorkerCommand::SendMessage { target, text, reply }) => {
                     let result = match peers.get(&target) {
-                        None => Err(ServiceError::InvalidConfiguration),
+                        None => Err(ServiceError::PeerNotObserved),
                         Some(peer) => {
                             let packet_number = packet_numbers.take();
                             match packet_number.and_then(|number| {
@@ -401,7 +410,7 @@ fn run_worker(
                                     &text,
                                     peer.supports_utf8,
                                 )
-                                .map_err(|_| ServiceError::OperationFailed)
+                                .map_err(|_| ServiceError::MessageEncodingFailed)
                             }) {
                                 Ok(encoded) => match transport.send_to(target, &encoded.bytes) {
                                     Ok(sent) if sent == encoded.bytes.len() => {
@@ -411,7 +420,7 @@ fn run_worker(
                                         }, &mut dropped_events);
                                         Ok(encoded.encoding)
                                     }
-                                    _ => Err(ServiceError::OperationFailed),
+                                    _ => Err(ServiceError::DatagramSendFailed),
                                 },
                                 Err(error) => Err(error),
                             }
@@ -456,15 +465,16 @@ fn run_worker(
         match transport.recv_from(&mut buffer) {
             Ok(received) => {
                 let source = received.source();
-                let observed_at = packet_numbers.next;
+                let observed_at = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
                 match session.handle_datagram(&received, observed_at) {
                     Ok(update) => {
                         match &update.event {
                             AppEvent::PeerJoined { peer, .. } => {
+                                peers.retain(|_, existing| existing.identity != peer.identity);
                                 peers.insert(source, peer.clone());
                             }
-                            AppEvent::PeerDeparted { .. } => {
-                                peers.remove(&source);
+                            AppEvent::PeerDeparted { peer, .. } => {
+                                peers.retain(|_, existing| existing.identity != *peer);
                             }
                             AppEvent::MessageReceived { .. } => {}
                         }
