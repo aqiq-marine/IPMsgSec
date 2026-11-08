@@ -45,6 +45,7 @@ pub struct PeerInfo {
     pub identity: PeerIdentityDto,
     pub first_seen_at: u64,
     pub supports_utf8: bool,
+    pub is_absent: bool,
 }
 
 impl PeerInfo {
@@ -56,6 +57,7 @@ impl PeerInfo {
             },
             first_seen_at: peer.first_seen_at(),
             supports_utf8: peer.supports_utf8(),
+            is_absent: peer.is_absent(),
         }
     }
 }
@@ -132,6 +134,8 @@ pub enum AppEvent {
         peer: PeerInfo,
         kind: PeerJoinKindDto,
         change: PeerChange,
+        nickname: Option<Vec<u8>>,
+        group: Option<Vec<u8>>,
     },
     PeerDeparted {
         peer: PeerIdentityDto,
@@ -152,6 +156,7 @@ pub enum AppEvent {
 pub enum PeerJoinKindDto {
     BroadcastEntry,
     AnswerEntry,
+    BroadcastAbsence,
 }
 
 impl From<PeerJoinKind> for PeerJoinKindDto {
@@ -159,6 +164,7 @@ impl From<PeerJoinKind> for PeerJoinKindDto {
         match value {
             PeerJoinKind::BroadcastEntry => Self::BroadcastEntry,
             PeerJoinKind::AnswerEntry => Self::AnswerEntry,
+            PeerJoinKind::BroadcastAbsence => Self::BroadcastAbsence,
         }
     }
 }
@@ -307,7 +313,7 @@ impl ApplicationSession {
                     peers_changed: false,
                 })
             }
-            ProtocolEvent::PeerJoined { identity, kind, .. } => {
+            ProtocolEvent::PeerJoined { identity, kind, nickname, group, .. } => {
                 let transition = apply_discovery_event(
                     &self.protocol_state,
                     &event,
@@ -333,6 +339,8 @@ impl ApplicationSession {
                         peer,
                         kind: kind.into(),
                         change,
+                        nickname: nickname.map(<[u8]>::to_vec),
+                        group: group.map(<[u8]>::to_vec),
                     },
                     response_action: transition.actions.get(0),
                     peers_changed: change != PeerChange::Unchanged,
