@@ -218,56 +218,58 @@ fn run(config: Config) -> Result<(), String> {
             Ok(ipmsgsec_app::SessionEvent::Started { local_address }) => {
                 println!("Session started on {local_address}");
             }
-            Ok(ipmsgsec_app::SessionEvent::Protocol { source, event }) => {
-                match event {
-                    AppEvent::MessageReceived {
-                        sender,
-                        body,
-                        encoding,
-                        decoded_text,
-                        decode_error,
-                    } => display_message(
-                        &sender,
-                        source,
-                        &body,
-                        encoding,
-                        decoded_text.as_deref(),
-                        decode_error,
-                    ),
-                    AppEvent::PeerJoined { peer, change, .. } => {
-                        println!("Peer joined from {source} ({change:?})");
-                        if let Some(index) = pending_send_to
-                            .iter()
-                            .position(|target| *target == source)
-                        {
-                            let target = pending_send_to.remove(index);
-                            if let Some(body) = &config.message {
-                                match handle.send_message(target, body.clone()) {
-                                    Ok(encoding) => {
-                                        println!("Sent SENDMSG to {target} using {encoding:?}")
-                                    }
-                                    Err(error) => {
-                                        eprintln!("could not send SENDMSG to {target}: {error}")
-                                    }
+            Ok(ipmsgsec_app::SessionEvent::Protocol { source, event }) => match event {
+                AppEvent::MessageReceived {
+                    sender,
+                    body,
+                    encoding,
+                    decoded_text,
+                    decode_error,
+                } => display_message(
+                    &sender,
+                    source,
+                    &body,
+                    encoding,
+                    decoded_text.as_deref(),
+                    decode_error,
+                ),
+                AppEvent::PeerJoined { peer, change, .. } => {
+                    println!("Peer joined from {source} ({change:?})");
+                    if let Some(index) = pending_send_to.iter().position(|target| *target == source)
+                    {
+                        let target = pending_send_to.remove(index);
+                        if let Some(body) = &config.message {
+                            match handle.send_message(target, body.clone()) {
+                                Ok(encoding) => {
+                                    println!("Sent SENDMSG to {target} using {encoding:?}")
+                                }
+                                Err(error) => {
+                                    eprintln!("could not send SENDMSG to {target}: {error}")
                                 }
                             }
                         }
-                        if let Ok(snapshot) = service.snapshot() {
-                            let peers: Vec<_> =
-                                snapshot.peers.into_iter().map(|endpoint| endpoint.peer).collect();
-                            display_peers(&peers);
-                        }
                     }
-                    AppEvent::PeerDeparted { change, .. } => {
-                        println!("Peer departed from {source} ({change:?})");
-                        if let Ok(snapshot) = service.snapshot() {
-                            let peers: Vec<_> =
-                                snapshot.peers.into_iter().map(|endpoint| endpoint.peer).collect();
-                            display_peers(&peers);
-                        }
+                    if let Ok(snapshot) = service.snapshot() {
+                        let peers: Vec<_> = snapshot
+                            .peers
+                            .into_iter()
+                            .map(|endpoint| endpoint.peer)
+                            .collect();
+                        display_peers(&peers);
                     }
                 }
-            }
+                AppEvent::PeerDeparted { change, .. } => {
+                    println!("Peer departed from {source} ({change:?})");
+                    if let Ok(snapshot) = service.snapshot() {
+                        let peers: Vec<_> = snapshot
+                            .peers
+                            .into_iter()
+                            .map(|endpoint| endpoint.peer)
+                            .collect();
+                        display_peers(&peers);
+                    }
+                }
+            },
             Ok(ipmsgsec_app::SessionEvent::MessageSubmitted { .. }) => {}
             Ok(ipmsgsec_app::SessionEvent::TransportError { message }) => {
                 eprintln!("transport/application error: {message}");
