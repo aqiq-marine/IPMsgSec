@@ -9,6 +9,7 @@ This directory contains the design, scope, security model, and verification stra
 - [Security model](security-model.md): attacker capabilities, assets, guarantees, and assumptions.
 - [Verification strategy](verification.md): proof targets, methodology, trusted computing base, and evidence levels.
 - [Architecture Decision Records](adr/README.md): rationale for durable design decisions.
+- [Desktop architecture](desktop-architecture.md): Windows-first Tauri shell, tray lifecycle, and UI/application boundary.
 
 ## Updating documentation
 
