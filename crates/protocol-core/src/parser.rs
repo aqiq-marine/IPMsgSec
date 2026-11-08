@@ -354,9 +354,18 @@ mod tests {
 
     #[test]
     fn rejects_non_decimal_and_negative_numeric_fields() {
-        assert_eq!(parse(b"x:2:alice:pc:32:body"), Err(ParseError::InvalidDecimal));
-        assert_eq!(parse(b"1:-2:alice:pc:32:body"), Err(ParseError::InvalidDecimal));
-        assert_eq!(parse(b"1:2:alice:pc:+32:body"), Err(ParseError::InvalidDecimal));
+        assert_eq!(
+            parse(b"x:2:alice:pc:32:body"),
+            Err(ParseError::InvalidDecimal)
+        );
+        assert_eq!(
+            parse(b"1:-2:alice:pc:32:body"),
+            Err(ParseError::InvalidDecimal)
+        );
+        assert_eq!(
+            parse(b"1:2:alice:pc:+32:body"),
+            Err(ParseError::InvalidDecimal)
+        );
     }
 
     #[test]
