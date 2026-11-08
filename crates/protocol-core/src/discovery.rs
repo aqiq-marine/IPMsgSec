@@ -351,6 +351,7 @@ mod tests {
             let event = ProtocolEvent::PeerJoined {
                 identity: PeerIdentity::new(username.as_bytes(), b"pc").unwrap(),
                 kind: PeerJoinKind::AnswerEntry,
+                supports_utf8: false,
             };
             state =
                 apply_discovery_event(&state, &event, ReplyTarget::new(index as u64), index as u64)
