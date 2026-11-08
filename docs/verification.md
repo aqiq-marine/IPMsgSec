@@ -63,14 +63,14 @@ I(s) ==> I(transition(s, event))
 
 for each event variant. If transitions can be rejected, prove rejection preserves the original state. Prefer immutable input + returned output or a verified transition delta.
 
-The first peer-table transition implementation lives in `crates/protocol-core/src/state.rs`. It models a bounded observed-peer cache with a maximum of 64 peers and 64 bytes per identity field. `PeerEvent::Joined` adds or refreshes a peer; `PeerEvent::Departed` removes an exact byte-identity match. A repeated join does not create a duplicate, and its observation timestamp is monotonic (older observations cannot move it backwards). Unknown departures are no-ops. Invalid identities and capacity overflow return errors without mutating the input state.
+The first peer-table transition implementation lives in `crates/protocol-core/src/state.rs`. It models a bounded observed-peer cache with a maximum of 64 peers and 64 bytes per identity field. `PeerEvent::Joined` adds a peer; `PeerEvent::Departed` removes an exact byte-identity match. A repeated join is an idempotent no-op and retains the first observation timestamp. Unknown departures are no-ops. Expiration and timestamp refresh are deferred. Invalid identities and capacity overflow return errors without mutating the input state.
 
 The state invariant is intended to establish:
 - Peer count is at most `MAX_PEERS`.
 - Every username and hostname is non-empty and at most `MAX_IDENTITY_BYTES`.
 - No two entries have the same byte-exact username/hostname pair.
 
-The transition takes the observation timestamp as an explicit input. It does not read a clock, perform I/O, or mutate the supplied state. Tests cover add, duplicate refresh, stale timestamps, departure, unknown departure, invalid identity, and capacity overflow. The exact Verus proof status is determined by the CI result for the current revision.
+The transition takes the observation timestamp as an explicit input. It does not read a clock, perform I/O, or mutate the supplied state. Tests cover add, duplicate idempotency, departure, unknown departure, invalid identity, and capacity overflow. The exact Verus proof status is determined by the CI result for the current revision.
 
 ## Phase 3 — composition
 

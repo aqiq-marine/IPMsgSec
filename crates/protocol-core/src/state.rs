@@ -11,7 +11,7 @@ pub const MAX_IDENTITY_BYTES: usize = 64;
 pub struct Peer {
     username: Vec<u8>,
     hostname: Vec<u8>,
-    last_seen: u64,
+    first_seen_at: u64,
 }
 
 impl Peer {
@@ -23,8 +23,8 @@ impl Peer {
         self.hostname.as_slice()
     }
 
-    pub fn last_seen(&self) -> u64 {
-        self.last_seen
+    pub fn first_seen_at(&self) -> u64 {
+        self.first_seen_at
     }
 }
 
@@ -183,12 +183,12 @@ fn copy_peer(peer: &Peer) -> (result: Peer)
     ensures
         result.username@ == peer.username@,
         result.hostname@ == peer.hostname@,
-        result.last_seen == peer.last_seen,
+        result.first_seen_at == peer.first_seen_at,
 {
     Peer {
         username: copy_bytes(peer.username.as_slice()),
         hostname: copy_bytes(peer.hostname.as_slice()),
-        last_seen: peer.last_seen,
+        first_seen_at: peer.first_seen_at,
     }
 }
 
@@ -200,7 +200,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         forall|i: int| 0 <= i < state.peers@.len() ==>
             result.peers@[i].username@ == state.peers@[i].username@
             && result.peers@[i].hostname@ == state.peers@[i].hostname@
-            && result.peers@[i].last_seen == state.peers@[i].last_seen,
+            && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at,
         peer_state_well_formed(&result),
 {
     let mut peers: Vec<Peer> = Vec::new();
@@ -212,7 +212,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
             forall|j: int| 0 <= j < index as int ==>
                 peers@[j].username@ == state.peers@[j].username@
                 && peers@[j].hostname@ == state.peers@[j].hostname@
-                && peers@[j].last_seen == state.peers@[j].last_seen,
+                && peers@[j].first_seen_at == state.peers@[j].first_seen_at,
         decreases
             state.peers.len() - index,
     {
@@ -226,7 +226,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
     assert forall|i: int| 0 <= i < state.peers@.len() implies
         result.peers@[i].username@ == state.peers@[i].username@
         && result.peers@[i].hostname@ == state.peers@[i].hostname@
-        && result.peers@[i].last_seen == state.peers@[i].last_seen
+        && result.peers@[i].first_seen_at == state.peers@[i].first_seen_at
     by {
         assert(i < result.peers@.len());
     }
@@ -277,7 +277,7 @@ fn append_peer(
     next.peers.push(Peer {
         username: copied_username,
         hostname: copied_hostname,
-        last_seen: observed_at,
+        first_seen_at: observed_at,
     });
 
     reveal(peer_state_well_formed);
@@ -374,7 +374,7 @@ fn remove_peer_at(state: &PeerState, index: usize) -> (result: PeerState)
 /// Apply one discovery event without performing I/O or reading the clock.
 ///
 /// Identity bytes are copied only after their lengths have been validated.
-/// Repeated joins refresh last_seen monotonically; stale timestamps cannot
+/// Repeated joins refresh first_seen_at monotonically; stale timestamps cannot
 /// move it backwards. Departures for unknown peers are harmless no-ops.
 pub fn apply_event(
     state: &PeerState,
@@ -475,7 +475,7 @@ mod tests {
         assert_eq!(result.state.len(), 1);
         assert_eq!(result.state.peers()[0].username(), b"alice");
         assert_eq!(result.state.peers()[0].hostname(), b"workstation");
-        assert_eq!(result.state.peers()[0].last_seen(), 10);
+        assert_eq!(result.state.peers()[0].first_seen_at(), 10);
         assert!(state.is_empty());
     }
 
@@ -486,7 +486,7 @@ mod tests {
         let second = apply_event(&first.state, joined(b"alice", b"pc", 20)).unwrap();
         assert_eq!(second.outcome, TransitionOutcome::Unchanged);
         assert_eq!(second.state.len(), 1);
-        assert_eq!(second.state.peers()[0].last_seen(), 10);
+        assert_eq!(second.state.peers()[0].first_seen_at(), 10);
     }
 
     #[test]
@@ -495,7 +495,7 @@ mod tests {
         let first = apply_event(&state, joined(b"alice", b"pc", 20)).unwrap();
         let second = apply_event(&first.state, joined(b"alice", b"pc", 10)).unwrap();
         assert_eq!(second.outcome, TransitionOutcome::Unchanged);
-        assert_eq!(second.state.peers()[0].last_seen(), 20);
+        assert_eq!(second.state.peers()[0].first_seen_at(), 20);
     }
 
     #[test]
