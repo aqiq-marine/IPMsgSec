@@ -268,7 +268,7 @@ fn append_peer(
         peer_state_well_formed(&result),
 {
     let mut next = copy_state(state);
-    let old_len = next.peers.len();
+    let ghost old_len = next.peers.len();
     let copied_username = copy_bytes(username);
     let copied_hostname = copy_bytes(hostname);
     assert(copied_username@ == username@);
@@ -328,7 +328,7 @@ fn remove_peer_at(state: &PeerState, index: usize) -> (result: PeerState)
         peer_state_well_formed(&result),
 {
     let mut next = copy_state(state);
-    let old_peers = next.peers@;
+    let ghost old_peers = next.peers@;
     next.peers.remove(index);
     assert(next.peers@ == old_peers.remove(index as int));
 
