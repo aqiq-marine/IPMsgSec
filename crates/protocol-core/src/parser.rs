@@ -93,7 +93,7 @@ pub open spec fn decimal_value(bytes: Seq<u8>) -> int
 /// Appending one digit extends the decimal value by one base-10 place.
 proof fn decimal_value_push(bytes: Seq<u8>, digit: u8)
     requires
-        b'0' <= digit <= b'9',
+        b'0' <= digit && digit <= b'9',
     ensures
         decimal_value(bytes.push(digit))
             == decimal_value(bytes) * 10 + digit as int - b'0' as int,
@@ -143,12 +143,14 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
         }
 
         let prefix = digits@.take(index as int);
-        decimal_value_push(prefix, byte);
-        assert(digits@.take(index as int + 1) == prefix.push(byte));
-        assert(
-            decimal_value(digits@.take(index as int + 1))
-                == decimal_value(prefix) * 10 + digit as int
-        );
+        proof {
+            decimal_value_push(prefix, byte);
+            assert(digits@.take(index as int + 1) == prefix.push(byte));
+            assert(
+                decimal_value(digits@.take(index as int + 1))
+                    == decimal_value(prefix) * 10 + digit as int
+            );
+        }
         value = value * 10 + digit;
         index = index + 1;
     }
@@ -387,6 +389,20 @@ mod tests {
         assert_eq!(packet.command_word, u32::MAX);
         assert_eq!(packet.command, CommandKind::Unsupported(255));
         assert_eq!(packet.option_flags, 0xffff_ff00);
+    }
+
+    #[test]
+    fn parses_maximum_u64_packet_number() {
+        let packet = parse(b"1:18446744073709551615:alice:pc:32:body").unwrap();
+        assert_eq!(packet.packet_number, u64::MAX);
+    }
+
+    #[test]
+    fn accepts_leading_zeroes_in_decimal_fields() {
+        let packet = parse(b"0001:0007:alice:pc:00032:body").unwrap();
+        assert_eq!(packet.version, 1);
+        assert_eq!(packet.packet_number, 7);
+        assert_eq!(packet.command, CommandKind::SendMessage);
     }
 
     #[test]
