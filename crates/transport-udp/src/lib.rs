@@ -5,12 +5,16 @@
 //! though std::net::UdpSocket::recv_from does not report a truncation flag.
 //! Parsing and event classification are delegated to protocol-core.
 
+use std::borrow::Cow;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
 
+use encoding_rs::{SHIFT_JIS, UTF_8};
+
 use ipmsgsec_protocol_core::{
-    BoundedDatagram, MAX_IDENTITY_BYTES, MAX_MESSAGE_BODY_BYTES, MAX_PACKET_SIZE, ParseError,
-    ProtocolAction, ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
+    BoundedDatagram, IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_IDENTITY_BYTES,
+    MAX_MESSAGE_BODY_BYTES, MAX_PACKET_SIZE, MessageEncoding, ParseError, ProtocolAction,
+    ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
 };
 
 /// Conventional IP Messenger UDP port. Binding remains an explicit caller choice.
@@ -140,6 +144,8 @@ pub enum EncodeError {
     EmptyMessage,
     MessageTooLong,
     NonAsciiMessage,
+    InvalidUtf8,
+    UnrepresentableCp932,
     ContainsNul,
     UnsupportedControl,
     PacketTooLarge,
@@ -159,10 +165,9 @@ impl std::fmt::Display for EncodeError {
                 f,
                 "message body must be at most {MAX_MESSAGE_BODY_BYTES} bytes"
             ),
-            Self::NonAsciiMessage => write!(
-                f,
-                "message body must be ASCII until UTF-8 negotiation is implemented"
-            ),
+            Self::NonAsciiMessage => write!(f, "message body must be ASCII for the legacy encoder"),
+            Self::InvalidUtf8 => write!(f, "message body is not valid UTF-8"),
+            Self::UnrepresentableCp932 => write!(f, "message cannot be represented in CP932"),
             Self::ContainsNul => write!(f, "message body cannot contain NUL in the plain-text MVP"),
             Self::UnsupportedControl => write!(
                 f,
@@ -185,7 +190,7 @@ fn encode_identity_command(
     packet_number: u64,
     username: &[u8],
     hostname: &[u8],
-    command: u8,
+    command_word: u32,
 ) -> Result<Vec<u8>, EncodeError> {
     if username.is_empty() || hostname.is_empty() {
         return Err(EncodeError::EmptyIdentity);
@@ -205,7 +210,7 @@ fn encode_identity_command(
     packet.push(b':');
     packet.extend_from_slice(hostname);
     packet.push(b':');
-    packet.extend_from_slice(command.to_string().as_bytes());
+    packet.extend_from_slice(command_word.to_string().as_bytes());
     packet.push(b':');
 
     if packet.len() > MAX_PACKET_SIZE {
@@ -220,7 +225,7 @@ pub fn encode_answer_entry(
     username: &[u8],
     hostname: &[u8],
 ) -> Result<Vec<u8>, EncodeError> {
-    encode_identity_command(packet_number, username, hostname, 3)
+    encode_identity_command(packet_number, username, hostname, 3 | IPMSG_CAPUTF8OPT)
 }
 
 /// Encode an IPMSG_BR_ENTRY announcement (command 1).
@@ -229,7 +234,7 @@ pub fn encode_broadcast_entry(
     username: &[u8],
     hostname: &[u8],
 ) -> Result<Vec<u8>, EncodeError> {
-    encode_identity_command(packet_number, username, hostname, 1)
+    encode_identity_command(packet_number, username, hostname, 1 | IPMSG_CAPUTF8OPT)
 }
 
 /// Encode an IPMSG_BR_EXIT announcement (command 2).
@@ -241,17 +246,64 @@ pub fn encode_broadcast_exit(
     encode_identity_command(packet_number, username, hostname, 2)
 }
 
-/// Encode an unflagged IPMSG_SENDMSG packet (command 32).
+/// Encode application text using the selected wire encoding.
 ///
-/// The initial interoperable subset is ASCII-only. ASCII is represented
-/// identically by CP932 and UTF-8, so this does not require advertising or
-/// assuming IPMSG_CAPUTF8OPT. NUL-separated attachment extensions and
-/// SENDCHECK acknowledgements are deliberately not implemented.
-pub fn encode_send_message(
+/// CP932 is used for peers that have not advertised IPMSG_CAPUTF8OPT.
+/// UTF-8 is used only for peers whose capability advertisement was observed.
+pub fn encode_text_body(text: &str, encoding: MessageEncoding) -> Result<Vec<u8>, EncodeError> {
+    if text.chars().any(|ch| ch == '\\0' || (ch.is_control() && ch != '\\n' && ch != '\\t')) {
+        return Err(EncodeError::UnsupportedControl);
+    }
+
+    let encoded: Cow<'_, [u8]> = match encoding {
+        MessageEncoding::Utf8 => Cow::Borrowed(text.as_bytes()),
+        MessageEncoding::Cp932 => {
+            let (bytes, _, had_errors) = SHIFT_JIS.encode(text);
+            if had_errors {
+                return Err(EncodeError::UnrepresentableCp932);
+            }
+            bytes
+        }
+    };
+    if encoded.is_empty() {
+        return Err(EncodeError::EmptyMessage);
+    }
+    if encoded.len() > MAX_MESSAGE_BODY_BYTES {
+        return Err(EncodeError::MessageTooLong);
+    }
+    Ok(encoded.into_owned())
+}
+
+/// Strictly decode a message body according to its wire option.
+pub fn decode_text_body(body: &[u8], encoding: MessageEncoding) -> Result<String, DecodeError> {
+    let decoder = match encoding {
+        MessageEncoding::Utf8 => UTF_8,
+        MessageEncoding::Cp932 => SHIFT_JIS,
+    };
+    let (decoded, had_errors) = decoder.decode_without_bom_handling(body);
+    if had_errors {
+        return Err(match encoding {
+            MessageEncoding::Utf8 => DecodeError::InvalidUtf8,
+            MessageEncoding::Cp932 => DecodeError::InvalidCp932,
+        });
+    }
+    Ok(decoded.into_owned())
+}
+
+/// Text decoding failures are reported rather than silently replaced.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DecodeError {
+    InvalidUtf8,
+    InvalidCp932,
+}
+
+/// Encode a SENDMSG packet with the negotiated encoding.
+pub fn encode_send_message_with_encoding(
     packet_number: u64,
     username: &[u8],
     hostname: &[u8],
     body: &[u8],
+    encoding: MessageEncoding,
 ) -> Result<Vec<u8>, EncodeError> {
     if body.is_empty() {
         return Err(EncodeError::EmptyMessage);
@@ -259,24 +311,56 @@ pub fn encode_send_message(
     if body.len() > MAX_MESSAGE_BODY_BYTES {
         return Err(EncodeError::MessageTooLong);
     }
-    if !body.is_ascii() {
-        return Err(EncodeError::NonAsciiMessage);
+    if body.contains(&0) {
+        return Err(EncodeError::ContainsNul);
     }
-    for byte in body {
-        if *byte == 0 {
-            return Err(EncodeError::ContainsNul);
+    match encoding {
+        MessageEncoding::Utf8 => {
+            std::str::from_utf8(body).map_err(|_| EncodeError::InvalidUtf8)?;
         }
-        if !(*byte == b'\n' || *byte == b'\t' || (0x20..=0x7e).contains(byte)) {
-            return Err(EncodeError::UnsupportedControl);
+        MessageEncoding::Cp932 => {
+            let (_, had_errors) = SHIFT_JIS.decode_without_bom_handling(body);
+            if had_errors {
+                return Err(EncodeError::UnrepresentableCp932);
+            }
         }
     }
 
-    let mut packet = encode_identity_command(packet_number, username, hostname, 32)?;
+    let option = match encoding {
+        MessageEncoding::Utf8 => IPMSG_UTF8OPT,
+        MessageEncoding::Cp932 => 0,
+    };
+    let mut packet = encode_identity_command(
+        packet_number,
+        username,
+        hostname,
+        32 | option,
+    )?;
     if packet.len().saturating_add(body.len()) > MAX_PACKET_SIZE {
         return Err(EncodeError::PacketTooLarge);
     }
     packet.extend_from_slice(body);
     Ok(packet)
+}
+
+/// Backwards-compatible ASCII/legacy encoder retained for callers that have
+/// not yet adopted peer capability lookup.
+pub fn encode_send_message(
+    packet_number: u64,
+    username: &[u8],
+    hostname: &[u8],
+    body: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
+    if !body.is_ascii() {
+        return Err(EncodeError::NonAsciiMessage);
+    }
+    encode_send_message_with_encoding(
+        packet_number,
+        username,
+        hostname,
+        body,
+        MessageEncoding::Cp932,
+    )
 }
 
 /// A deliberately small UDP socket adapter.
