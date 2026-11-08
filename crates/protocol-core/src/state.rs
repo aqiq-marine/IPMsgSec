@@ -447,6 +447,7 @@ pub fn apply_event(
                         || next.peers[index].is_absent != is_absent;
                     next.peers[index].supports_utf8 = supports_utf8;
                     next.peers[index].is_absent = is_absent;
+                    assert(peer_state_well_formed(&next));
                     Ok(TransitionResult {
                         state: next,
                         outcome: if changed {
