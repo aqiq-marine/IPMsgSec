@@ -443,13 +443,47 @@ pub fn apply_event(
             match found {
                 Some(index) => {
                     let mut next = copy_state(state);
+                    let ghost old_peers = next.peers@;
+                    assert(peer_state_well_formed(&next));
                     let changed = next.peers[index].supports_utf8 != supports_utf8
                         || next.peers[index].is_absent != is_absent;
                     next.peers[index].supports_utf8 = supports_utf8;
                     next.peers[index].is_absent = is_absent;
+
+                    // The update changes only capability/status fields. Preserve
+                    // the identity projection used by the peer-table invariant.
                     reveal(peer_state_well_formed);
                     reveal(peer_well_formed);
                     reveal(same_identity);
+                    assert(next.peers@.len() == old_peers.len());
+                    assert forall|i: int| 0 <= i < old_peers.len()
+                        implies next.peers@[i].username@ == old_peers[i].username@
+                            && next.peers@[i].hostname@ == old_peers[i].hostname@
+                    by {
+                        if i == index as int {
+                            assert(next.peers@[i].username@ == old_peers[i].username@);
+                            assert(next.peers@[i].hostname@ == old_peers[i].hostname@);
+                        } else {
+                            assert(next.peers@[i].username@ == old_peers[i].username@);
+                            assert(next.peers@[i].hostname@ == old_peers[i].hostname@);
+                        }
+                    }
+                    assert forall|i: int| 0 <= i < next.peers@.len()
+                        implies peer_well_formed(&next.peers@[i])
+                    by {
+                        assert(peer_well_formed(&old_peers[i]));
+                        assert(next.peers@[i].username@ == old_peers[i].username@);
+                        assert(next.peers@[i].hostname@ == old_peers[i].hostname@);
+                    }
+                    assert forall|i: int, j: int| 0 <= i < j < next.peers@.len()
+                        implies !same_identity(&next.peers@[i], &next.peers@[j])
+                    by {
+                        assert(!same_identity(&old_peers[i], &old_peers[j]));
+                        assert(next.peers@[i].username@ == old_peers[i].username@);
+                        assert(next.peers@[i].hostname@ == old_peers[i].hostname@);
+                        assert(next.peers@[j].username@ == old_peers[j].username@);
+                        assert(next.peers@[j].hostname@ == old_peers[j].hostname@);
+                    }
                     assert(peer_state_well_formed(&next));
                     Ok(TransitionResult {
                         state: next,
