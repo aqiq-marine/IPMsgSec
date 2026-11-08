@@ -1,9 +1,15 @@
 # ADR 0006: Conservative ASCII-only plain-text messages
 
-- Status: Accepted
+- Status: Superseded by [ADR 0007](0007-utf8-negotiation-before-app-layer.md)
 - Date: 2026-11-08
 
 ## Context
+
+This ADR records the initial ASCII-only implementation decision. It was
+superseded when UTF-8 capability negotiation was implemented in the next
+protocol milestone; retain it as historical rationale for the first safe
+messaging increment.
+
 
 IP Messenger's SENDMSG body encoding depends on peer capability. The protocol
 defines CP932 as the legacy default and permits UTF-8 when peers advertise
