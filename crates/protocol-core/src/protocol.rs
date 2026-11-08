@@ -86,7 +86,9 @@ pub enum ProtocolError {
     InvalidIdentity,
     UnsupportedCommand(u8),
     InconsistentPacket,
-    UnsupportedMessageOptions,
+    /// A recognized command carries option bits whose semantics are not implemented.
+    /// The raw flags remain available on the parsed Packet for diagnostics or future support.
+    UnsupportedOptions { command_id: u8, flags: u32 },
     EmptyMessageBody,
     MessageBodyTooLong,
     UnsupportedMessageExtension,
@@ -162,7 +164,10 @@ pub fn classify_packet<'a>(
 
     if let CommandKind::SendMessage = packet.command {
         if packet.option_flags & !IPMSG_UTF8OPT != 0 {
-            return Err(ProtocolError::UnsupportedMessageOptions);
+            return Err(ProtocolError::UnsupportedOptions {
+                command_id,
+                flags: packet.option_flags,
+            });
         }
         if packet.additional_data.is_empty() {
             return Err(ProtocolError::EmptyMessageBody);
@@ -178,13 +183,19 @@ pub fn classify_packet<'a>(
     let supports_utf8 = match packet.command {
         CommandKind::BroadcastEntry | CommandKind::AnswerEntry => {
             if packet.option_flags & !IPMSG_CAPUTF8OPT != 0 {
-                return Err(ProtocolError::InconsistentPacket);
+                return Err(ProtocolError::UnsupportedOptions {
+                    command_id,
+                    flags: packet.option_flags,
+                });
             }
             packet.option_flags & IPMSG_CAPUTF8OPT != 0
         }
         CommandKind::BroadcastExit => {
             if packet.option_flags != 0 {
-                return Err(ProtocolError::InconsistentPacket);
+                return Err(ProtocolError::UnsupportedOptions {
+                    command_id,
+                    flags: packet.option_flags,
+                });
             }
             false
         }
@@ -328,7 +339,10 @@ mod tests {
         parsed.option_flags = 0x0100_0000;
         assert_eq!(
             classify_packet(&parsed),
-            Err(ProtocolError::UnsupportedMessageOptions)
+            Err(ProtocolError::UnsupportedOptions {
+                command_id: 32,
+                flags: 0x0100_0000,
+            })
         );
     }
 
@@ -465,7 +479,10 @@ mod tests {
         exit.option_flags = IPMSG_CAPUTF8OPT;
         assert_eq!(
             classify_packet(&exit),
-            Err(ProtocolError::InconsistentPacket)
+            Err(ProtocolError::UnsupportedOptions {
+                command_id: 2,
+                flags: IPMSG_CAPUTF8OPT,
+            })
         );
     }
 
@@ -489,6 +506,28 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn preserves_unknown_discovery_flags_at_parse_layer_but_does_not_apply_them() {
+        let mut parsed = packet(
+            b"alice",
+            b"workstation",
+            CommandKind::BroadcastEntry,
+            b"opaque-extension",
+        );
+        let unknown_and_unimplemented = 0x0200_0000;
+        parsed.command_word = 0x0200_0001;
+        parsed.option_flags = unknown_and_unimplemented;
+
+        assert_eq!(parsed.command_word, 0x0200_0001);
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::UnsupportedOptions {
+                command_id: 1,
+                flags: unknown_and_unimplemented,
+            })
+        );
     }
 
     #[test]
