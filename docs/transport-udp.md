@@ -54,3 +54,16 @@ delimiter. No UTF-8 validity is assumed.
 - SendError: action/source mismatch, response encoding, or socket send error.
 
 No malformed packet is converted into a peer-state transition by this crate.
+
+
+## Text message encoding
+
+The adapter exposes `encode_send_message` for the unflagged
+`IPMSG_SENDMSG` command. The first increment accepts a non-empty ASCII body
+of at most 4096 bytes; TAB and LF are allowed, while NUL and other control
+bytes are rejected. The body is appended as opaque bytes after the five-field
+header, so colons in the message are preserved. The encoder does not set
+`IPMSG_UTF8OPT` or `IPMSG_SENDCHECKOPT`, does not encode attachments, and
+does not generate acknowledgements or retries. This restriction avoids
+assuming a legacy peer's character encoding; multilingual negotiation is
+deferred.
