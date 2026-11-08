@@ -310,41 +310,40 @@ fn run(config: Config) -> Result<(), String> {
             && let Some(index) = pending_send_to
                 .iter()
                 .position(|target| *target == received.source())
+            && let Some(body) = &config.message
         {
             let target = pending_send_to.remove(index);
-            if let Some(body) = &config.message {
-                let encoding = if supports_utf8 {
+            let encoding = if supports_utf8 {
                     MessageEncoding::Utf8
                 } else {
                     MessageEncoding::Cp932
                 };
-                match encode_text_body(body, encoding) {
-                    Ok(encoded_body) => {
-                        let packet_number = packet_numbers.take()?;
-                        match encode_send_message_with_encoding(
-                            packet_number,
-                            config.username.as_bytes(),
-                            config.hostname.as_bytes(),
-                            &encoded_body,
-                            encoding,
-                        ) {
-                            Ok(packet) => match transport.send_to(target, &packet) {
-                                Ok(_) => {
-                                    println!("Sent SENDMSG to {target} using {encoding:?}")
-                                }
-                                Err(error) => {
-                                    eprintln!("could not send SENDMSG to {target}: {error}")
-                                }
-                            },
-                            Err(error) => {
-                                eprintln!("cannot encode SENDMSG for {target}: {error}")
+            match encode_text_body(body, encoding) {
+                Ok(encoded_body) => {
+                    let packet_number = packet_numbers.take()?;
+                    match encode_send_message_with_encoding(
+                        packet_number,
+                        config.username.as_bytes(),
+                        config.hostname.as_bytes(),
+                        &encoded_body,
+                        encoding,
+                    ) {
+                        Ok(packet) => match transport.send_to(target, &packet) {
+                            Ok(_) => {
+                                println!("Sent SENDMSG to {target} using {encoding:?}")
                             }
+                            Err(error) => {
+                                eprintln!("could not send SENDMSG to {target}: {error}")
+                            }
+                        },
+                        Err(error) => {
+                            eprintln!("cannot encode SENDMSG for {target}: {error}")
                         }
                     }
-                    Err(error) => eprintln!(
-                        "cannot encode message for {target} using {encoding:?}: {error}"
-                    ),
                 }
+                Err(error) => eprintln!(
+                    "cannot encode message for {target} using {encoding:?}: {error}"
+                ),
             }
         }
 
