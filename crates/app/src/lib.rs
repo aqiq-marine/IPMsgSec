@@ -354,10 +354,6 @@ mod tests {
     use std::net::UdpSocket;
     use std::time::Duration;
 
-    fn receive_one(transport: &mut UdpTransport) -> ReceivedDatagram<'static> {
-        unreachable!("helper is intentionally not used; datagrams borrow the receive buffer")
-    }
-
     #[test]
     fn encodes_utf8_for_capable_peer_and_cp932_for_legacy_peer() {
         let utf8 = encode_message_for_peer(1, b"alice", b"host", "こんにちは", true).unwrap();
