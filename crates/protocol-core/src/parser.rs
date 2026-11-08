@@ -74,6 +74,7 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
 
 /// Parse a non-empty sequence of ASCII decimal digits as u64.
 /// Overflow is detected before multiplication/addition.
+#[allow(clippy::manual_range_contains)]
 fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
 {
     if digits.is_empty() {
@@ -89,7 +90,7 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
             digits.len() - index,
     {
         let byte = digits[index];
-        if !byte.is_ascii_digit() {
+        if byte < b'0' || byte > b'9' {
             return Err(ParseError::InvalidDecimal);
         }
 
@@ -105,11 +106,34 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
     Ok(value)
 }
 
+/// Convert a command's low byte to the supported command classification.
+fn classify_command(command_id: u8) -> (result: CommandKind)
+{
+    match command_id {
+        1 => CommandKind::BroadcastEntry,
+        2 => CommandKind::BroadcastExit,
+        3 => CommandKind::AnswerEntry,
+        32 => CommandKind::SendMessage,
+        other => CommandKind::Unsupported(other),
+    }
+}
+
 /// Parse a bounded IP Messenger datagram.
 ///
 /// This function is pure: it borrows the input and neither allocates nor
 /// mutates application state. It consumes exactly five header delimiters.
 pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseError>)
+    ensures
+        match result {
+            Ok(packet) =>
+                packet.version == 1
+                && packet.username.len() > 0
+                && packet.hostname.len() > 0
+                && packet.additional_data.len() <= MAX_PACKET_SIZE
+                && packet.option_flags == (packet.command_word & !0xffu32)
+                && packet.command == classify_command((packet.command_word & 0xff) as u8),
+            Err(_) => true,
+        }
 {
     if bytes.len() > MAX_PACKET_SIZE {
         return Err(ParseError::PacketTooLarge);
@@ -175,13 +199,7 @@ pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseErr
     let command_id = (command_word & 0xff) as u8;
     let option_flags = command_word & !0xffu32;
 
-    let command = match command_id {
-        1 => CommandKind::BroadcastEntry,
-        2 => CommandKind::BroadcastExit,
-        3 => CommandKind::AnswerEntry,
-        32 => CommandKind::SendMessage,
-        other => CommandKind::Unsupported(other),
-    };
+    let command = classify_command(command_id);
 
     cursor = command_end + 1;
     let additional_data = &bytes[cursor..bytes.len()];
