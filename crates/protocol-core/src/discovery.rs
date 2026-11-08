@@ -207,11 +207,8 @@ pub fn apply_discovery_event(
 mod tests {
     use super::*;
 
-    fn identity<'a>() -> PeerIdentity<'a> {
-        PeerIdentity {
-            username: b"alice",
-            hostname: b"workstation",
-        }
+    fn identity() -> PeerIdentity<'static> {
+        PeerIdentity::new(b"alice", b"workstation").unwrap()
     }
 
     fn joined(kind: PeerJoinKind) -> ProtocolEvent<'static> {
@@ -373,10 +370,7 @@ mod tests {
         for index in 0..crate::state::MAX_PEERS {
             let username = format!("user-{index}");
             let event = ProtocolEvent::PeerJoined {
-                identity: PeerIdentity {
-                    username: username.as_bytes(),
-                    hostname: b"pc",
-                },
+                identity: PeerIdentity::new(username.as_bytes(), b"pc").unwrap(),
                 kind: PeerJoinKind::AnswerEntry,
             };
             state = apply_discovery_event(
@@ -395,24 +389,6 @@ mod tests {
             Err(DiscoveryError::State(StateError::TableFull))
         );
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
-    }
-
-    #[test]
-    fn invalid_identity_is_rejected_without_partial_transition() {
-        let state = ProtocolState::empty();
-        let event = ProtocolEvent::PeerJoined {
-            identity: PeerIdentity {
-                username: b"",
-                hostname: b"pc",
-            },
-            kind: PeerJoinKind::BroadcastEntry,
-        };
-
-        assert_eq!(
-            apply_discovery_event(&state, event, ReplyTarget::new(1), 10),
-            Err(DiscoveryError::State(StateError::InvalidIdentity))
-        );
-        assert!(state.peers().is_empty());
     }
 
     #[test]
