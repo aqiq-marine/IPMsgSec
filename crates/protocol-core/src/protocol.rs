@@ -4,6 +4,7 @@
 //! not perform I/O, mutate peer state, decode text, or interpret command data
 //! beyond the command identifier already classified by the parser.
 
+use crate::discovery_metadata::{DiscoveryDataError, parse_discovery_data};
 use crate::parser::{CommandKind, Packet};
 use crate::state::MAX_IDENTITY_BYTES;
 use vstd::prelude::*;
@@ -15,6 +16,9 @@ pub const MAX_MESSAGE_BODY_BYTES: usize = 4 * 1024;
 
 /// IPMSG_CAPUTF8OPT: advertised in BR_ENTRY and ANSENTRY command words.
 pub const IPMSG_CAPUTF8OPT: u32 = 0x0100_0000;
+
+/// IPMSG_ABSENCEOPT: peer is currently in absence mode.
+pub const IPMSG_ABSENCEOPT: u32 = 0x0000_0100;
 
 /// IPMSG_UTF8OPT: marks a message body encoded as UTF-8.
 pub const IPMSG_UTF8OPT: u32 = 0x0080_0000;
@@ -31,6 +35,7 @@ pub enum MessageEncoding {
 pub enum PeerJoinKind {
     BroadcastEntry,
     AnswerEntry,
+    BroadcastAbsence,
 }
 
 /// A byte-exact peer identity borrowed from a parsed packet.
@@ -71,6 +76,9 @@ pub enum ProtocolEvent<'a> {
         identity: PeerIdentity<'a>,
         kind: PeerJoinKind,
         supports_utf8: bool,
+        is_absent: bool,
+        nickname: Option<&'a [u8]>,
+        group: Option<&'a [u8]>,
     },
     PeerDeparted(PeerIdentity<'a>),
     MessageReceived {
@@ -92,6 +100,7 @@ pub enum ProtocolError {
     EmptyMessageBody,
     MessageBodyTooLong,
     UnsupportedMessageExtension,
+    InvalidDiscoveryExtension,
 }
 
 pub closed spec fn peer_identity_well_formed(identity: &PeerIdentity) -> bool {
@@ -155,6 +164,7 @@ pub fn classify_packet<'a>(
         CommandKind::BroadcastEntry => command_id == 1,
         CommandKind::BroadcastExit => command_id == 2,
         CommandKind::AnswerEntry => command_id == 3,
+        CommandKind::BroadcastAbsence => command_id == 4,
         CommandKind::SendMessage => command_id == 32,
         CommandKind::Unsupported(expected) => command_id == expected,
     };
@@ -181,8 +191,8 @@ pub fn classify_packet<'a>(
     }
 
     let supports_utf8 = match packet.command {
-        CommandKind::BroadcastEntry | CommandKind::AnswerEntry => {
-            if packet.option_flags & !IPMSG_CAPUTF8OPT != 0 {
+        CommandKind::BroadcastEntry | CommandKind::AnswerEntry | CommandKind::BroadcastAbsence => {
+            if packet.option_flags & !(IPMSG_CAPUTF8OPT | IPMSG_ABSENCEOPT) != 0 {
                 return Err(ProtocolError::UnsupportedOptions {
                     command_id,
                     flags: packet.option_flags,
@@ -202,7 +212,21 @@ pub fn classify_packet<'a>(
         _ => false,
     };
 
-    let identity = make_identity(packet.username, packet.hostname)?;
+    let is_absent = packet.option_flags & IPMSG_ABSENCEOPT != 0;
+    let discovery_data = match packet.command {
+        CommandKind::BroadcastEntry | CommandKind::AnswerEntry | CommandKind::BroadcastAbsence =>
+            Some(parse_discovery_data(packet.additional_data).map_err(|error| match error {
+                DiscoveryDataError::MalformedExtension
+                | DiscoveryDataError::InvalidUtf8
+                | DiscoveryDataError::DuplicateField => ProtocolError::InvalidDiscoveryExtension,
+            })?),
+        _ => None,
+    };
+    let username = match discovery_data { Some(data) => data.username.unwrap_or(packet.username), None => packet.username };
+    let hostname = match discovery_data { Some(data) => data.hostname.unwrap_or(packet.hostname), None => packet.hostname };
+    let identity = make_identity(username, hostname)?;
+    let nickname = match discovery_data { Some(data) => data.nickname.or(data.legacy_nickname), None => None };
+    let group = match discovery_data { Some(data) => data.group.or(data.legacy_group), None => None };
 
     let event = match packet.command {
         CommandKind::BroadcastEntry =>
@@ -210,12 +234,27 @@ pub fn classify_packet<'a>(
                 identity,
                 kind: PeerJoinKind::BroadcastEntry,
                 supports_utf8,
+                is_absent,
+                nickname,
+                group,
             },
         CommandKind::AnswerEntry =>
             ProtocolEvent::PeerJoined {
                 identity,
                 kind: PeerJoinKind::AnswerEntry,
                 supports_utf8,
+                is_absent,
+                nickname,
+                group,
+            },
+        CommandKind::BroadcastAbsence =>
+            ProtocolEvent::PeerJoined {
+                identity,
+                kind: PeerJoinKind::BroadcastAbsence,
+                supports_utf8,
+                is_absent,
+                nickname,
+                group,
             },
         CommandKind::BroadcastExit =>
             ProtocolEvent::PeerDeparted(identity),
@@ -258,6 +297,7 @@ mod tests {
                 CommandKind::BroadcastEntry => 1,
                 CommandKind::BroadcastExit => 2,
                 CommandKind::AnswerEntry => 3,
+                CommandKind::BroadcastAbsence => 4,
                 CommandKind::SendMessage => 32,
                 CommandKind::Unsupported(id) => id as u32,
             },
@@ -279,6 +319,9 @@ mod tests {
                 },
                 kind: PeerJoinKind::BroadcastEntry,
                 supports_utf8: false,
+                is_absent: false,
+                nickname: None,
+                group: None,
             })
         );
     }
