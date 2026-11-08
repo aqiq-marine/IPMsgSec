@@ -443,7 +443,10 @@ mod tests {
         entry.option_flags = IPMSG_CAPUTF8OPT;
         assert!(matches!(
             classify_packet(&entry),
-            Ok(ProtocolEvent::PeerJoined { supports_utf8: true, .. })
+            Ok(ProtocolEvent::PeerJoined {
+                supports_utf8: true,
+                ..
+            })
         ));
 
         let mut answer = packet(b"alice", b"workstation", CommandKind::AnswerEntry, b"");
@@ -457,7 +460,10 @@ mod tests {
         let mut exit = packet(b"alice", b"workstation", CommandKind::BroadcastExit, b"");
         exit.command_word = 0x0100_0002;
         exit.option_flags = IPMSG_CAPUTF8OPT;
-        assert_eq!(classify_packet(&exit), Err(ProtocolError::InconsistentPacket));
+        assert_eq!(
+            classify_packet(&exit),
+            Err(ProtocolError::InconsistentPacket)
+        );
     }
 
     #[test]
@@ -475,7 +481,10 @@ mod tests {
         let legacy = packet(b"alice", b"pc", CommandKind::SendMessage, b"hello");
         assert!(matches!(
             classify_packet(&legacy),
-            Ok(ProtocolEvent::MessageReceived { encoding: MessageEncoding::Cp932, .. })
+            Ok(ProtocolEvent::MessageReceived {
+                encoding: MessageEncoding::Cp932,
+                ..
+            })
         ));
     }
 
