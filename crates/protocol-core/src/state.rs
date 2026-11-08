@@ -88,18 +88,19 @@ pub closed spec fn peer_state_well_formed(state: &PeerState) -> bool {
 }
 
 closed spec fn no_peer_with_identity(
-    peers: &[Peer],
+    peers: &Vec<Peer>,
     username: &[u8],
     hostname: &[u8],
 ) -> bool {
-    forall|j: int| 0 <= j < peers.len() as int
+    forall|j: int| 0 <= j < peers@.len()
         ==> peers@[j].username@ != username@
             || peers@[j].hostname@ != hostname@
 }
 
 /// Find the first peer with the requested byte-exact identity.
+#[allow(clippy::ptr_arg)]
 fn find_peer_index(
-    peers: &[Peer],
+    peers: &Vec<Peer>,
     username: &[u8],
     hostname: &[u8],
 ) -> (result: Option<usize>)
@@ -263,7 +264,7 @@ fn append_peer(
         username.len() > 0 && username.len() <= MAX_IDENTITY_BYTES,
         hostname.len() > 0 && hostname.len() <= MAX_IDENTITY_BYTES,
         state.peers.len() < MAX_PEERS,
-        no_peer_with_identity(state.peers.as_slice(), username, hostname),
+        no_peer_with_identity(&state.peers, username, hostname),
     ensures
         peer_state_well_formed(&result),
 {
