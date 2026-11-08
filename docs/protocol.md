@@ -21,6 +21,38 @@ Example from the specification:
 
 The command field is a 32-bit value represented in decimal text. Its low 8 bits identify the command; upper bits are option flags. The parser must not assume every command value is supported.
 
+## Compatibility and extension policy
+
+IPMsgSec separates three questions that must not be conflated:
+
+1. **Wire syntax:** can the bounded byte sequence be parsed into the common packet envelope?
+2. **Implemented semantics:** does this build understand the command and the options needed to interpret it?
+3. **Security policy:** is it safe for this application to act on the interpreted event?
+
+The parser is intentionally permissive only at the envelope boundary. It validates the five header delimiters, decimal fields, protocol version, packet-size bound, and required identity-field presence. It preserves the complete 32-bit command word, the low-byte command ID, the upper option bits, and the borrowed additional-data bytes. It does not decide whether a command or option is supported.
+
+The semantic classifier is deliberately fail-closed:
+
+- A known command with only implemented options may become a typed protocol event.
+- A known command carrying any option bits not implemented for that command returns `ProtocolError::UnsupportedOptions { command_id, flags }`. This includes both recognized-but-unimplemented options and unknown future bits. The original command word and flags remain available in the parsed `Packet`; the classifier does not silently discard or reinterpret them.
+- An unknown command remains `CommandKind::Unsupported` and returns `ProtocolError::UnsupportedCommand`. It is never mapped to a nearby supported command.
+- A malformed envelope returns a parse error, not an unsupported-feature result.
+- Unsupported or malformed packets must not cause a peer/message state transition.
+
+Opaque command-specific data is handled separately from the common envelope. Discovery additional data is currently preserved and ignored because its extension grammar is not implemented. Message additional data is accepted only for the implemented plain-text form; NUL-separated attachment/extended-message data is rejected as an unsupported message extension. No file, crypto, path, or executable semantics are inferred from opaque bytes.
+
+This is a compatibility/security trade-off: unknown data is not mislabeled as malformed, but it is also not acted upon. Future support should add a command-specific bounded parser and tests, then produce a typed event only for the exact semantics implemented. If an extension can safely be ignored without changing the meaning of the supported base operation, that behavior must be documented and tested explicitly; it must not be inferred from the fact that a field is unknown.
+
+### Error taxonomy
+
+| Layer | Example | Result |
+|---|---|---|
+| Envelope parser | Missing delimiter, invalid decimal, oversized datagram | Structured parse error |
+| Command classifier | Unknown command ID | `UnsupportedCommand` |
+| Command classifier | Known command with unsupported/unknown option bits | `UnsupportedOptions` with raw flags |
+| Command-specific data | NUL-separated attachment data on current SENDMSG subset | `UnsupportedMessageExtension` |
+| Security/state policy | Event fails a state invariant or is not permitted | Reject without state mutation |
+
 ## MVP command subset
 
 | Command | Value | Purpose |
@@ -74,7 +106,7 @@ The initial runtime parser is in `crates/protocol-core/src/parser.rs`. It curren
 - Returns borrowed byte slices; it does not perform lossy UTF-8 conversion or allocate packet-controlled buffers.
 - The Verus contract for delimiter search states that the returned delimiter is the first delimiter in the suffix.
 - The Verus contract for decimal parsing states that successful parsing implies all bytes are ASCII decimal digits and the returned value equals the mathematical base-10 interpretation of those bytes.
-- The parser's success contract states the version, identity-field, size, option-bit, and command-ID invariants.
+- The parser's success contract states the version, identity-field, size, and command-word decomposition invariants. Option support is checked later by the semantic classifier.
 
 The parser is written inside the Verus `verus!` macro and is a member of the runtime protocol-core crate. CI has successfully verified the Cargo-Verus target while compiling the same runtime crate; see [verification evidence](verification.md).
 
@@ -86,7 +118,9 @@ Additional requirements:
 - Treat additional data as opaque bytes until command-specific encoding is validated.
 - Account for NUL-separated extension data; do not assume the first NUL or colon always has the same meaning for every command.
 - Never interpret message contents as shell commands, format strings, paths, or executable input.
-- Preserve unknown command values as unsupported input or reject them; never reinterpret them as a supported command.
+- Preserve unknown command values and all option bits in the parsed packet; never reinterpret them as a supported command.
+- Report known commands with unsupported option bits as `UnsupportedOptions`, not as malformed envelope syntax.
+- Do not apply state transitions for unsupported commands, options, or command-specific extensions.
 
 ## Unresolved protocol decisions
 
