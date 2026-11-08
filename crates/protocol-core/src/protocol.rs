@@ -640,7 +640,6 @@ mod tests {
                 kind: PeerJoinKind::BroadcastAbsence,
                 is_absent: false,
                 supports_utf8: true,
-                nickname: Some(b"nickname"),
                 ..
             })
         ));
