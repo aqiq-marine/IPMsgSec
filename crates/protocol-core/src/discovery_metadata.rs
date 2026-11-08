@@ -34,7 +34,9 @@ pub enum DiscoveryDataError {
 #[allow(clippy::manual_range_contains)] // Explicit comparisons keep this verifier-friendly.
 fn is_valid_utf8(bytes: &[u8]) -> bool {
     let mut i = 0;
-    while i < bytes.len() {
+    while i < bytes.len()
+        decreases bytes.len() - i,
+    {
         let b0 = bytes[i];
         if b0 <= 0x7f {
             i += 1;
