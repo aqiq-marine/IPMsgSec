@@ -113,11 +113,16 @@ The CLI is unverified. CI tests are not external interoperability evidence. The 
 
 ### PR 5 — Text messaging
 
-- Compose `SendMessage` events with a bounded message state or delivery interface.
-- Set a distinct maximum message-body size; the 8 KiB datagram bound is not automatically the application message limit.
-- Specify UTF-8 capability advertisement and message encoding behavior, including legacy-peer behavior, before implementing negotiation.
-- Preserve message bytes until an explicit decoding policy is applied.
-- Do not add acknowledgements, read notifications, file transfer, or encryption unless separately scoped.
+Implemented in the initial `ipmsgsec-cli` text-message increment:
+
+- Add a bounded `IPMSG_SENDMSG` encoder with an independent 4 KiB body limit.
+- Require an explicit IPv4 `--send-to` endpoint and `--message` body; both are required together and may be repeated for multiple targets.
+- Send one unflagged SENDMSG packet at startup; keep listening for inbound messages.
+- Route `MessageReceived` events separately from discovery transitions. Display sender identity, source address, and byte-escaped body without assuming UTF-8 or allowing terminal control-sequence injection.
+- Restrict outbound messages to printable ASCII plus TAB/LF. ASCII is byte-compatible with both CP932 and UTF-8, so this subset does not claim UTF-8 negotiation.
+- Do not request SENDCHECK, send RECVMSG acknowledgements, retry, or parse attachment extensions.
+
+The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation, CP932 support, delivery acknowledgements, retries, and attachment handling remain deferred.
 
 ## Protocol decisions to resolve
 
