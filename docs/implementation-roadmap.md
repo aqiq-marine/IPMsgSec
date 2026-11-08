@@ -42,15 +42,92 @@ The peer table is in `crates/protocol-core/src/state.rs`. It is bounded to 64 pe
 
 The parser and peer-state modules are selected by the Cargo-Verus verification target. Existing CI also runs Rust tests, formatting, and Clippy. See [verification strategy](verification.md) for the recorded evidence and its exact scope.
 
-## Completed milestones
+## Milestones
 
-PR 1 — Protocol model, PR 2 — Discovery transition and abstract actions, PR 3 — UDP transport adapter, PR 4 — IPv4 CLI discovery, and PR 5 — bounded plain-text messaging are implemented and merged. Their design details and acceptance criteria remain in the repository history and the earlier sections of this roadmap.
+### PR 1 — Protocol model
 
-PR 5 currently supports a conservative ASCII-only SENDMSG subset. It does not advertise UTF-8 capability or negotiate message encoding. See [ADR 0006](adr/0006-conservative-ascii-messaging.md).
+Add a small model between parsed packets and state transitions.
+
+- Introduce a borrowed `PeerIdentity<'a>` with username and hostname accessors.
+- Validate both identity components as non-empty and no longer than `MAX_IDENTITY_BYTES`.
+- Introduce `ProtocolEvent<'a>` variants for peer join, peer departure, and received text message.
+- Introduce a structured `ProtocolError` for invalid identities and unsupported commands.
+- Implement a pure `classify_packet(&Packet) -> Result<ProtocolEvent, ProtocolError>`.
+- Preserve the message body as borrowed opaque bytes. Do not decode it as UTF-8 at this layer.
+- Do not infer command-specific payload formats that are not yet specified. In particular, discovery-command additional data remains ignored by this classification layer until an explicit protocol decision is recorded.
+- Add unit tests for all supported commands, unsupported commands, identity bounds, and body preservation.
+- Keep the parser and peer-state interfaces stable.
+
+Acceptance:
+- The new module is exported by the crate.
+- Classification is deterministic, has no I/O or state mutation, and does not allocate.
+- The identity bounds match the peer-state bounds.
+- The runtime tests, Clippy, formatting, and Verus CI all pass.
+- Any property not actually discharged by Verus is labelled tested or designed, not proved.
+
+### PR 2 — Discovery transition and abstract actions
+
+Compose protocol events with the peer table without performing I/O.
+
+- Distinguish `BroadcastEntry` from `AnswerEntry` in the protocol event model; both represent a peer join, but only the former requests a response.
+- Add a `ProtocolState` that owns the bounded peer table.
+- Represent the datagram source as an opaque `ReplyTarget(u64)` token supplied by the transport boundary, not as a platform socket or IP type.
+- Add the abstract action `SendAnswerEntry { target }`.
+- Return the next state, peer transition outcome, and a fixed-capacity ordered action list from a pure transition function.
+- On every broadcast entry, add or retain the peer and request an answer-entry response. Repeated announcements remain state-idempotent but still receive a response, allowing recovery from a lost prior response.
+- On answer-entry, add or retain the peer without responding.
+- On exit, remove the exact byte-identity match; an unknown departure is a no-op.
+- Reject message events at this discovery-only layer. The input state is immutable and no partial state/action result is returned on errors.
+- Prove the state invariant, action bound, and correspondence between discovery event kinds and generated actions.
+
+The initial action list has capacity one by construction. `ReplyTarget` is an adapter correlation token; the transport owns the mapping from that token to a real source address. Do not place socket handles, IP addresses with platform-dependent behavior, or clock reads inside the verified transition function.
+
+### PR 3 — UDP transport adapter
+
+Add the unverified `transport-udp` crate.
+
+- Bind sockets only at an explicit caller-supplied address; do not silently select an interface.
+- Receive into `MAX_PACKET_SIZE + 1` bytes. A full sentinel byte proves the datagram exceeded the 8 KiB application limit even when the standard socket API does not expose a truncation flag.
+- Preserve the source `SocketAddr` and pair it with an opaque per-receive `ReplyTarget` token.
+- Delegate parsing and classification to `protocol-core`; the adapter must not parse command fields independently.
+- Translate `SendAnswerEntry` into a directed UDP response to the source associated with the same received datagram.
+- Keep socket I/O errors, oversized datagrams, parser errors, protocol errors, and response-encoding errors distinct.
+- Encode identity bytes verbatim without assuming UTF-8; reject `:` in local identity fields because it is the header delimiter.
+- Require the caller to supply the answer packet number. Packet-number generation/collision policy remains unresolved.
+- Keep broadcast destination and interface policy explicit; this PR does not claim general LAN broadcast discovery.
+
+The adapter is unverified. The `MAX_PACKET_SIZE + 1` sentinel technique depends on the UDP receive contract returning at least the supplied buffer length when a larger datagram is truncated; the unit test exercises this behavior on the CI Linux target. No platform-independent whole-application proof is claimed.
+
+### PR 4 — CLI discovery and interoperability
+
+Implemented in `ipmsgsec-cli`:
+
+- Require an explicit IPv4 bind address and one or more explicit announcement destinations; no interface or broadcast destination is guessed.
+- Send BR_ENTRY on startup and BR_EXIT on normal duration expiry.
+- Receive bounded UDP datagrams, delegate parsing/classification to protocol-core, apply the pure discovery transition, and send ANSENTRY to the exact source of BR_ENTRY.
+- Display the observed peer table. Ignore malformed, unsupported, and non-discovery packets without logging packet bodies.
+- Support two/three same-host instances using distinct loopback ports and repeated unicast `--announce-to` destinations.
+- Restrict local identity to non-empty ASCII without ':' until legacy/UTF-8 identity encoding is specified.
+- Use a system-clock-seeded, checked packet-number counter; this is best-effort and not an anti-replay or uniqueness guarantee.
+
+The CLI is unverified. CI tests are not external interoperability evidence. The first external target is the official Windows IP Messenger 5.9.1 client; the manual test matrix is in `docs/cli-discovery.md`. No external-client test or packet capture is claimed until that matrix is completed.
+
+### PR 5 — Text messaging
+
+Implemented in the initial `ipmsgsec-cli` text-message increment:
+
+- Add a bounded `IPMSG_SENDMSG` encoder with an independent 4 KiB body limit.
+- Require an explicit IPv4 `--send-to` endpoint and `--message` body; both are required together and may be repeated for multiple targets.
+- Send one unflagged SENDMSG packet at startup; keep listening for inbound messages.
+- Route `MessageReceived` events separately from discovery transitions. Display sender identity, source address, and byte-escaped body without assuming UTF-8 or allowing terminal control-sequence injection.
+- Restrict outbound messages to printable ASCII plus TAB/LF. ASCII is byte-compatible with both CP932 and UTF-8, so this subset does not claim UTF-8 negotiation.
+- Do not request SENDCHECK, send RECVMSG acknowledgements, retry, or parse attachment extensions.
+
+The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation and CP932 support are the next protocol milestone (PR 6); delivery acknowledgements, retries, and attachment handling remain deferred.
 
 ## Next implementation sequence
 
-The order below is intentional: complete wire-encoding negotiation before introducing a shared application API, so that CLI and GUI are built on a stable text-message model. See [ADR 0007](adr/0007-utf8-negotiation-before-app-layer.md).
+The next milestones intentionally complete wire-encoding negotiation before introducing the shared application API. This avoids baking the current ASCII-only limitation into the interfaces shared by the CLI and future GUI. See [ADR 0007](adr/0007-utf8-negotiation-before-app-layer.md).
 
 ### PR 6 — UTF-8 capability negotiation
 
@@ -59,7 +136,7 @@ The order below is intentional: complete wire-encoding negotiation before introd
 - Advertise local UTF-8 support in the appropriate discovery packets.
 - Select the SENDMSG UTF-8 flag only for peers that advertised support.
 - Decode UTF-8-marked messages as UTF-8 and unflagged legacy messages as CP932, following the verified protocol rules.
-- Specify deterministic behavior for malformed UTF-8, CP932 conversion failures, unsupported flags, and unknown peer capability.
+- Specify deterministic behavior for malformed UTF-8, CP932 conversion failures, unsupported flags, and unknown peer capability. Do not silently reinterpret malformed data using a different encoding.
 - Preserve the 4 KiB body limit and datagram bound across encoding conversion.
 - Add tests for capability state transitions, outgoing encoding/flags, incoming decoding, malformed data, and legacy-peer fallback.
 - Update the protocol reference and interoperability test matrix with actual evidence.
@@ -109,6 +186,22 @@ Acceptance: GUI and CLI use the same application layer; GUI tests cover renderin
 - Treat stored message content and peer metadata as untrusted data when loaded.
 - Keep filesystem/database operations outside protocol-core.
 
+## Protocol decisions to resolve
+
+Track these as explicit decisions or ADRs before broad interoperability claims:
+
+1. Limited broadcast, directed broadcast, or both.
+2. Interface selection and socket binding.
+3. Identity-field encoding and byte-level validation.
+4. UTF-8 negotiation and legacy encoding behavior.
+5. Per-command additional-data grammar, including NUL-separated extensions.
+6. Whether empty additional data is valid for each command.
+7. Packet-number generation and collision behavior.
+8. Peer expiration and stale/reordered departure/rejoin semantics.
+9. First external interoperability target and version.
+
+Until a decision is made, prefer preserving opaque bytes and avoiding speculative validation.
+
 ## Security and verification rules
 
 - Treat every received datagram and every field within it as attacker-controlled.
@@ -123,4 +216,4 @@ Acceptance: GUI and CLI use the same application layer; GUI tests cover renderin
 
 ## Out of scope for the initial MVP
 
-Encryption/authentication, file transfer, read receipts, peer freshness/expiration, and whole-application formal verification. These may be added later as separately specified milestones.
+Encryption/authentication, file transfer, GUI, full legacy compatibility, read receipts, message acknowledgements, peer freshness/expiration, and whole-application formal verification. These may be added later as separately specified milestones.
