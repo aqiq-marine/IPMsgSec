@@ -146,12 +146,14 @@ pub fn apply_discovery_event(
         ProtocolEvent::PeerJoined {
             identity,
             supports_utf8,
+            is_absent,
             ..
         } => PeerEvent::Joined {
             username: identity.username(),
             hostname: identity.hostname(),
             observed_at,
             supports_utf8: *supports_utf8,
+            is_absent: *is_absent,
         },
         ProtocolEvent::PeerDeparted(identity) =>
             PeerEvent::Departed {
@@ -213,6 +215,9 @@ mod tests {
             identity: identity(),
             kind,
             supports_utf8: false,
+            is_absent: false,
+            nickname: None,
+            group: None,
         }
     }
 
@@ -352,6 +357,9 @@ mod tests {
                 identity: PeerIdentity::new(username.as_bytes(), b"pc").unwrap(),
                 kind: PeerJoinKind::AnswerEntry,
                 supports_utf8: false,
+                is_absent: false,
+                nickname: None,
+                group: None,
             };
             state =
                 apply_discovery_event(&state, &event, ReplyTarget::new(index as u64), index as u64)
@@ -365,5 +373,26 @@ mod tests {
             Err(DiscoveryError::State(StateError::TableFull))
         );
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
+    }
+
+    #[test]
+    fn broadcast_absence_updates_presence_without_sending_a_reply() {
+        let state = ProtocolState::empty();
+        let target = ReplyTarget::new(77);
+        let event = ProtocolEvent::PeerJoined {
+            identity: identity(),
+            kind: PeerJoinKind::BroadcastAbsence,
+            supports_utf8: true,
+            is_absent: true,
+            nickname: Some(b"away"),
+            group: Some(b"chemistry"),
+        };
+        let result = apply_discovery_event(&state, &event, target, 123).unwrap();
+
+        assert_eq!(result.peer_outcome, TransitionOutcome::Added);
+        assert!(result.actions.is_empty());
+        assert_eq!(result.state.peers().peers()[0].username(), b"alice");
+        assert!(result.state.peers().peers()[0].supports_utf8());
+        assert!(result.state.peers().peers()[0].is_absent());
     }
 }

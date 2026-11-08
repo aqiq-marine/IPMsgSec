@@ -45,6 +45,7 @@ pub struct PeerInfo {
     pub identity: PeerIdentityDto,
     pub first_seen_at: u64,
     pub supports_utf8: bool,
+    pub is_absent: bool,
 }
 
 impl PeerInfo {
@@ -56,6 +57,7 @@ impl PeerInfo {
             },
             first_seen_at: peer.first_seen_at(),
             supports_utf8: peer.supports_utf8(),
+            is_absent: peer.is_absent(),
         }
     }
 }
@@ -132,6 +134,8 @@ pub enum AppEvent {
         peer: PeerInfo,
         kind: PeerJoinKindDto,
         change: PeerChange,
+        nickname: Option<Vec<u8>>,
+        group: Option<Vec<u8>>,
     },
     PeerDeparted {
         peer: PeerIdentityDto,
@@ -152,6 +156,7 @@ pub enum AppEvent {
 pub enum PeerJoinKindDto {
     BroadcastEntry,
     AnswerEntry,
+    BroadcastAbsence,
 }
 
 impl From<PeerJoinKind> for PeerJoinKindDto {
@@ -159,6 +164,7 @@ impl From<PeerJoinKind> for PeerJoinKindDto {
         match value {
             PeerJoinKind::BroadcastEntry => Self::BroadcastEntry,
             PeerJoinKind::AnswerEntry => Self::AnswerEntry,
+            PeerJoinKind::BroadcastAbsence => Self::BroadcastAbsence,
         }
     }
 }
@@ -307,7 +313,13 @@ impl ApplicationSession {
                     peers_changed: false,
                 })
             }
-            ProtocolEvent::PeerJoined { identity, kind, .. } => {
+            ProtocolEvent::PeerJoined {
+                identity,
+                kind,
+                nickname,
+                group,
+                ..
+            } => {
                 let transition = apply_discovery_event(
                     &self.protocol_state,
                     &event,
@@ -333,6 +345,8 @@ impl ApplicationSession {
                         peer,
                         kind: kind.into(),
                         change,
+                        nickname: nickname.map(<[u8]>::to_vec),
+                        group: group.map(<[u8]>::to_vec),
                     },
                     response_action: transition.actions.get(0),
                     peers_changed: change != PeerChange::Unchanged,
@@ -465,6 +479,7 @@ mod tests {
                 },
                 kind: PeerJoinKindDto::BroadcastEntry,
                 change: PeerChange::Added,
+                ..
             }
         ));
         assert!(update.response_action.is_some());
@@ -501,5 +516,44 @@ mod tests {
                 ..
             } if text == "こんにちは"
         ));
+    }
+
+    #[test]
+    fn exposes_broadcast_absence_and_utf8_metadata_in_owned_app_event() {
+        let mut transport = UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        transport
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let packet = "1:12:legacy-user:legacy-host:16777476:legacy-nick\0legacy-group\0\nUN:ボブ\nHN:remote-pc\nNN:離席中\nGN:chemistry\n".as_bytes();
+        sender
+            .send_to(packet, transport.local_addr().unwrap())
+            .unwrap();
+
+        let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
+        let received = transport.recv_from(&mut buffer).unwrap();
+        let mut session = ApplicationSession::new();
+        let update = session.handle_datagram(&received, 200).unwrap();
+
+        match update.event {
+            AppEvent::PeerJoined {
+                peer,
+                kind,
+                nickname,
+                group,
+                ..
+            } => {
+                assert_eq!(kind, PeerJoinKindDto::BroadcastAbsence);
+                assert_eq!(peer.identity.username, "ボブ".as_bytes());
+                assert_eq!(peer.identity.hostname, b"remote-pc");
+                assert!(peer.is_absent);
+                assert!(peer.supports_utf8);
+                assert_eq!(nickname, Some("離席中".as_bytes().to_vec()));
+                assert_eq!(group, Some(b"chemistry".to_vec()));
+            }
+            other => panic!("unexpected app event: {other:?}"),
+        }
+        assert!(update.response_action.is_none());
+        assert!(session.peers()[0].is_absent);
     }
 }

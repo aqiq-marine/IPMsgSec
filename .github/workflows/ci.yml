@@ -78,7 +78,9 @@ jobs:
         run: |
           rustup toolchain install 1.99.1 --profile minimal --component rustc-dev --component llvm-tools
           rustup default 1.99.1
-      - name: Download pinned Verus release
+      - name: Download pinned Verus release through GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           archive="$RUNNER_TEMP/verus-$VERUS_VERSION-x86-linux.zip"
@@ -95,6 +97,7 @@ jobs:
             --max-time 300 \
             "$url" --output "$archive"
           test -s "$archive"
+
           echo "$VERUS_SHA256_X86_LINUX  $archive" | sha256sum --check
           mkdir -p "$RUNNER_TEMP/verus"
           unzip -q "$archive" -d "$RUNNER_TEMP/verus"
