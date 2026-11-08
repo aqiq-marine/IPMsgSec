@@ -256,7 +256,13 @@ fn run(config: Config) -> Result<(), String> {
 }
 
 fn main() -> ExitCode {
-    let config = match parse_config(env::args().skip(1)) {
+    let arguments: Vec<String> = env::args().skip(1).collect();
+    if arguments.iter().any(|argument| argument == "--help" || argument == "-h") {
+        println!("{}", usage());
+        return ExitCode::SUCCESS;
+    }
+
+    let config = match parse_config(arguments) {
         Ok(config) => config,
         Err(error) => {
             eprintln!("{error}");
