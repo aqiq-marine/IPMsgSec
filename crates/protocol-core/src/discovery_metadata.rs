@@ -31,6 +31,7 @@ pub enum DiscoveryDataError {
 /// Validate UTF-8 directly over bytes so this parser remains inside Verus'
 /// supported primitive model. This checks overlong encodings, surrogates,
 /// truncated sequences, and code points above U+10FFFF.
+#[allow(clippy::manual_range_contains)] // Explicit comparisons keep this verifier-friendly.
 fn is_valid_utf8(bytes: &[u8]) -> bool {
     let mut i = 0;
     while i < bytes.len() {
