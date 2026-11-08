@@ -112,4 +112,4 @@ These techniques find defects but do not replace proofs.
 
 ## Initial executable proof baseline
 
-The repository currently contains verification/smoke.rs, checked by the CI workflow using the pinned Verus release documented in [toolchain.md](toolchain.md). It proves a small checked-offset arithmetic contract. It is deliberately not described as a parser proof. The next proof target should be the actual bounded cursor/slice helper used by the runtime parser, with a documented connection between the verified function and executable parsing code.
+The repository contains verification/smoke.rs, a standalone checked-offset arithmetic target, and a Cargo-Verus-enabled protocol-core crate. The runtime parser is written inside the crate's verus! module and is selected by the CI command `cargo verus verify -p ipmsgsec-protocol-core`. This design avoids a second proof-only parser. The parser's actual proof status remains pending until that command succeeds on the current source revision.
