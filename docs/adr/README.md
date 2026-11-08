@@ -20,5 +20,6 @@ Accepted ADRs should generally not be edited to rewrite history. Add a new ADR t
 | [0003](0003-mvp-scope.md) | Restrict MVP to LAN peer discovery and plain-text messaging | Accepted |
 | [0004](0004-no-unsafe-in-core.md) | Prohibit unsafe Rust in the verified core | Accepted |
 | [0005](0005-explicit-ipv4-discovery-destinations.md) | Require explicit IPv4 discovery destinations | Accepted |
+| [0006](0006-conservative-ascii-messaging.md) | Use a conservative ASCII-only text-message subset | Accepted |
 
 When a decision changes, add a new numbered ADR and update this index.
