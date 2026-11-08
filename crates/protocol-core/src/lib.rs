@@ -48,7 +48,7 @@ impl<'a> BoundedDatagram<'a> {
 
 pub mod parser;
 
-pub use parser::{parse_packet, CommandKind, Packet, ParseError};
+pub use parser::{CommandKind, Packet, ParseError, parse_packet};
 
 #[cfg(test)]
 mod tests {
