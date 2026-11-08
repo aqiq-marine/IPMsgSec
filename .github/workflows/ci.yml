@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           archive="$RUNNER_TEMP/verus-$VERUS_VERSION-x86-linux.zip"
-          url="https://github.com/verus-lang/verus/releases/download/release/$VERUS_VERSION/verus-$VERUS_VERSION-x86-linux.zip"
+          url="https://github.com/verus-lang/verus/releases/download/release%2F$VERUS_VERSION/verus-$VERUS_VERSION-x86-linux.zip"
           # GitHub Release downloads can intermittently return 5xx responses.
           # Retry longer than the default short CI window, and retry all
           # transient curl errors (including HTTP 5xx and connection resets).
