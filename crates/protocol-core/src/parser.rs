@@ -4,8 +4,8 @@
 //! after the fifth delimiter is opaque command-specific data; in particular,
 //! colons in a message body are preserved.
 
-use vstd::prelude::*;
 use crate::MAX_PACKET_SIZE;
+use vstd::prelude::*;
 
 verus! {
 
