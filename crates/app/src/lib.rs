@@ -404,6 +404,22 @@ mod tests {
     use std::time::Duration;
 
     #[test]
+    fn exposes_owned_status_and_error_dtos() {
+        let session = ApplicationSession::new();
+        assert_eq!(
+            session.status(),
+            ApplicationStatus {
+                status: SessionStatus::Ready,
+                peer_count: 0,
+            }
+        );
+
+        let error = ApplicationError::Encode(EncodeError::UnrepresentableCp932).to_dto();
+        assert_eq!(error.kind, ApplicationErrorKind::Encode);
+        assert_eq!(error.message, "message cannot be represented in CP932");
+    }
+
+    #[test]
     fn encodes_utf8_for_capable_peer_and_cp932_for_legacy_peer() {
         let utf8 = encode_message_for_peer(1, b"alice", b"host", "こんにちは", true).unwrap();
         assert_eq!(utf8.encoding, TextEncoding::Utf8);
