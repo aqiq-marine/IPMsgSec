@@ -112,8 +112,14 @@ where
         if body.is_empty() {
             return Err("--message must not be empty".to_owned());
         }
-        if body.chars().any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t')) {
-            return Err("--message may contain only text, TAB, and LF; NUL and other controls are rejected".to_owned());
+        if body
+            .chars()
+            .any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t'))
+        {
+            return Err(
+                "--message may contain only text, TAB, and LF; NUL and other controls are rejected"
+                    .to_owned(),
+            );
         }
     }
 
@@ -192,7 +198,10 @@ fn display_message(
             sender.username().escape_ascii(),
             sender.hostname().escape_ascii(),
             source,
-            body.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join("")
+            body.iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<Vec<_>>()
+                .join("")
         ),
     }
 }
@@ -227,7 +236,11 @@ fn run(config: Config) -> Result<(), String> {
     if !pending_send_to.is_empty() {
         println!(
             "Waiting for peer capability advertisements before sending to: {}",
-            pending_send_to.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            pending_send_to
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     }
 
@@ -267,7 +280,12 @@ fn run(config: Config) -> Result<(), String> {
             }
         };
 
-        if let ProtocolEvent::MessageReceived { sender, body, encoding } = event {
+        if let ProtocolEvent::MessageReceived {
+            sender,
+            body,
+            encoding,
+        } = event
+        {
             display_message(sender, received.source(), body, encoding);
             continue;
         }
@@ -289,7 +307,10 @@ fn run(config: Config) -> Result<(), String> {
         state = transition.state;
 
         if let ProtocolEvent::PeerJoined { supports_utf8, .. } = event {
-            if let Some(index) = pending_send_to.iter().position(|target| *target == received.source()) {
+            if let Some(index) = pending_send_to
+                .iter()
+                .position(|target| *target == received.source())
+            {
                 let target = pending_send_to.remove(index);
                 if let Some(body) = &config.message {
                     let encoding = if supports_utf8 {
@@ -308,13 +329,21 @@ fn run(config: Config) -> Result<(), String> {
                                 encoding,
                             ) {
                                 Ok(packet) => match transport.send_to(target, &packet) {
-                                    Ok(_) => println!("Sent SENDMSG to {target} using {encoding:?}"),
-                                    Err(error) => eprintln!("could not send SENDMSG to {target}: {error}"),
+                                    Ok(_) => {
+                                        println!("Sent SENDMSG to {target} using {encoding:?}")
+                                    }
+                                    Err(error) => {
+                                        eprintln!("could not send SENDMSG to {target}: {error}")
+                                    }
                                 },
-                                Err(error) => eprintln!("cannot encode SENDMSG for {target}: {error}"),
+                                Err(error) => {
+                                    eprintln!("cannot encode SENDMSG for {target}: {error}")
+                                }
                             }
                         }
-                        Err(error) => eprintln!("cannot encode message for {target} using {encoding:?}: {error}"),
+                        Err(error) => eprintln!(
+                            "cannot encode message for {target} using {encoding:?}: {error}"
+                        ),
                     }
                 }
             }
@@ -350,7 +379,11 @@ fn run(config: Config) -> Result<(), String> {
     if !pending_send_to.is_empty() {
         eprintln!(
             "message was not sent because no capability advertisement was received from: {}",
-            pending_send_to.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            pending_send_to
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     }
 
@@ -488,7 +521,10 @@ mod tests {
                 .into_iter()
                 .map(str::to_owned),
         );
-        assert_eq!(parse_config(values).unwrap().message.as_deref(), Some("こんにちは"));
+        assert_eq!(
+            parse_config(values).unwrap().message.as_deref(),
+            Some("こんにちは")
+        );
 
         for body in ["hello\0world", "hello\u{1b}[31m"] {
             let mut values = args();
