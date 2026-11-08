@@ -146,12 +146,14 @@ pub fn apply_discovery_event(
         ProtocolEvent::PeerJoined {
             identity,
             supports_utf8,
+            is_absent,
             ..
         } => PeerEvent::Joined {
             username: identity.username(),
             hostname: identity.hostname(),
             observed_at,
             supports_utf8: *supports_utf8,
+            is_absent: *is_absent,
         },
         ProtocolEvent::PeerDeparted(identity) =>
             PeerEvent::Departed {
