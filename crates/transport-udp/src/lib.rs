@@ -9,9 +9,8 @@ use std::io;
 use std::net::{SocketAddr, UdpSocket};
 
 use ipmsgsec_protocol_core::{
-    BoundedDatagram, MAX_IDENTITY_BYTES, MAX_PACKET_SIZE, ParseError, ProtocolAction,
-    MAX_MESSAGE_BODY_BYTES, ProtocolError, ProtocolEvent, ReplyTarget, classify_packet,
-    parse_packet,
+    BoundedDatagram, MAX_IDENTITY_BYTES, MAX_MESSAGE_BODY_BYTES, MAX_PACKET_SIZE, ParseError,
+    ProtocolAction, ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
 };
 
 /// Conventional IP Messenger UDP port. Binding remains an explicit caller choice.
@@ -160,7 +159,10 @@ impl std::fmt::Display for EncodeError {
                 f,
                 "message body must be at most {MAX_MESSAGE_BODY_BYTES} bytes"
             ),
-            Self::NonAsciiMessage => write!(f, "message body must be ASCII until UTF-8 negotiation is implemented"),
+            Self::NonAsciiMessage => write!(
+                f,
+                "message body must be ASCII until UTF-8 negotiation is implemented"
+            ),
             Self::ContainsNul => write!(f, "message body cannot contain NUL in the plain-text MVP"),
             Self::UnsupportedControl => write!(
                 f,
@@ -434,7 +436,8 @@ mod tests {
 
     #[test]
     fn encodes_ascii_send_message_and_round_trips_through_core() {
-        let bytes = encode_send_message(123, b"alice", b"workstation", b"hello: world\nnext").unwrap();
+        let bytes =
+            encode_send_message(123, b"alice", b"workstation", b"hello: world\nnext").unwrap();
         let packet = parse_packet(&bytes).unwrap();
         assert_eq!(packet.packet_number, 123);
         assert_eq!(packet.username, b"alice");
