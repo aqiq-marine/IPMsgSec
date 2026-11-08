@@ -8,7 +8,7 @@ This directory contains the design, scope, security model, and verification stra
 - [Architecture](architecture.md): module boundaries and data flow.
 - [Security model](security-model.md): attacker capabilities, assets, guarantees, and assumptions.
 - [Verification strategy](verification.md): proof targets, methodology, trusted computing base, and evidence levels.
-- [Architecture Decision Records](adr/README.md): rationale for durable design decisions.
+- [Architecture Decision Records](adr/README.md): rationale for durable design decisions, including [ADR 0011: protocol compatibility policy](adr/0011-protocol-compatibility-policy.md).
 - [Desktop architecture](desktop-architecture.md): Windows-first Tauri shell, tray lifecycle, and UI/application boundary.
 
 ## Updating documentation
@@ -26,5 +26,5 @@ Resolve these during implementation and record the evidence:
 - Whether a later MVP increment adds TCP message bodies or remains UDP-only.
 
 
-- [MVP protocol subset](protocol.md): protocol fields, commands, source references, and unresolved compatibility questions.
+- [MVP protocol subset](protocol.md): protocol fields, commands, source references, extension policy, and unresolved compatibility questions.
 - [Toolchain](toolchain.md): pinned Verus/Rust versions, archive digest, and setup instructions.
