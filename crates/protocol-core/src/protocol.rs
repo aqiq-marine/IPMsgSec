@@ -25,6 +25,20 @@ pub struct PeerIdentity<'a> {
 }
 
 impl<'a> PeerIdentity<'a> {
+    /// Validate and construct a borrowed peer identity.
+    pub fn new(
+        username: &'a [u8],
+        hostname: &'a [u8],
+    ) -> (result: Result<Self, ProtocolError>)
+        ensures
+            match result {
+                Ok(identity) => peer_identity_well_formed(&identity),
+                Err(_) => true,
+            }
+    {
+        make_identity(username, hostname)
+    }
+
     pub fn username(&self) -> &'a [u8] {
         self.username
     }
