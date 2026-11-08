@@ -12,10 +12,16 @@ pub open spec fn checked_end(start: nat, width: nat, limit: nat) -> Option<nat> 
     }
 }
 
-proof fn main() {
+proof fn check_cases() {
     assert(checked_end(3, 4, 10) == Some(7));
     assert(checked_end(9, 2, 10) == None);
     assert(checked_end(10, 0, 10) == Some(10));
+}
+
+fn main() {
+    proof {
+        check_cases();
+    }
 }
 
 } // verus!
