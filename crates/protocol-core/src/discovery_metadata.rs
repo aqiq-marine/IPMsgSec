@@ -42,7 +42,7 @@ fn is_valid_utf8(bytes: &[u8]) -> bool {
         if b0 <= 0x7f {
             i += 1;
         } else if b0 >= 0xc2 && b0 <= 0xdf {
-            if i + 1 >= bytes.len() { return false; }
+            if bytes.len() - i < 2 { return false; }
             let b1 = bytes[i + 1];
             if b1 < 0x80 || b1 > 0xbf { return false; }
             i += 2;
@@ -123,7 +123,7 @@ pub fn parse_discovery_data(data: &[u8]) -> Result<DiscoveryData<'_>, DiscoveryD
             let mut marker = 0;
             while marker < tail.len()
                 && tail.len() - marker >= 2
-                && !(tail[marker] == 0 && tail[marker + 1] == b'\\n')
+                && !(tail[marker] == 0 && tail[marker + 1] == b'\n')
                 invariant marker <= tail.len(),
                 decreases tail.len() - marker,
             {
