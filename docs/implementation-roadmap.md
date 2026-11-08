@@ -166,20 +166,22 @@ Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on P
 
 Acceptance: Rust tests (80 passed), CLI subprocess integration tests, formatting, Clippy, and the unchanged protocol-core Verus target passed on PR #9 (run [42457026720](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42457026720)). Worker and application code remain unverified.
 
-### Implementation PR 9 — Tauri 2 desktop shell and tray lifecycle (in progress)
+### Implementation PR 9 — Tauri 2 desktop application and tray lifecycle
 
 - [x] Use Tauri 2 with React and TypeScript.
 - [x] Prioritize Windows for initial implementation and acceptance testing.
-- [x] Show the main window on startup.
-- [x] Intercept the main window close request and hide it without stopping the process/session.
-- [x] Provide a tray Open action that restores, unminimizes, and focuses the main window.
-- [x] Provide an explicit tray Quit action. Once ApplicationService is integrated, this path must perform graceful worker shutdown before process exit.
-- [x] Enforce single-instance behavior; a second launch focuses the existing window.
+- [x] Show the main window on startup; hide it rather than exit when the user closes it.
+- [x] Provide tray Open, explicit Quit, and single-instance activation.
 - [x] Keep desktop dependencies outside the root Rust workspace and preserve the existing Verus proof boundary.
-- [ ] Add the Tauri shell, tray implementation, frontend scaffold, and dedicated desktop build checks.
-- [ ] Verify the tray icon, window hide/restore, quit, and single-instance behavior on Windows.
+- [x] Integrate the existing ApplicationService; do not duplicate UDP or protocol orchestration in the desktop adapter.
+- [x] Keep the worker alive while the main window is hidden.
+- [x] Forward bounded worker events as owned Tauri event DTOs and expose peer snapshots.
+- [x] Expose narrow commands for explicit session startup, discovery, snapshots, message submission, and session stop.
+- [x] Require explicit IPv4 bind and discovery targets; do not guess broadcast destinations.
+- [x] Perform worker shutdown and BR_EXIT before tray Quit/process exit.
+- [ ] Verify startup, peer discovery across hosts, message exchange, close-to-tray behavior, tray restore, Stop session, graceful Quit, and second-instance activation on Windows.
 
-Acceptance: Windows startup shows the main window and tray icon; close hides rather than exits; tray Open restores the existing window; tray Quit exits; second launch focuses the existing process. The initial shell does not yet start ApplicationService or claim network messaging functionality. See [ADR 0010](adr/0010-tauri-desktop-and-tray-lifecycle.md) and [desktop architecture](desktop-architecture.md).
+Acceptance: The frontend uses only Tauri commands/events and owned DTOs. The ApplicationService worker remains the sole owner of UDP transport and protocol state. Hiding the window does not stop discovery. The protocol-core Verus proof boundary is unchanged; the application worker and desktop adapter remain unverified. See [ADR 0010](adr/0010-tauri-desktop-and-tray-lifecycle.md), [ADR 0011](adr/0011-desktop-application-session-integration.md), and [desktop architecture](desktop-architecture.md).
 
 ### Implementation PR 10 — Message delivery semantics
 
