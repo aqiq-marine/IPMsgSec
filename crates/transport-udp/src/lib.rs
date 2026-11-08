@@ -251,7 +251,7 @@ pub fn encode_broadcast_exit(
 /// CP932 is used for peers that have not advertised IPMSG_CAPUTF8OPT.
 /// UTF-8 is used only for peers whose capability advertisement was observed.
 pub fn encode_text_body(text: &str, encoding: MessageEncoding) -> Result<Vec<u8>, EncodeError> {
-    if text.chars().any(|ch| ch == '\\0' || (ch.is_control() && ch != '\\n' && ch != '\\t')) {
+    if text.chars().any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t')) {
         return Err(EncodeError::UnsupportedControl);
     }
 
@@ -317,7 +317,7 @@ pub fn encode_send_message_with_encoding(
     match encoding {
         MessageEncoding::Utf8 => {
             let text = std::str::from_utf8(body).map_err(|_| EncodeError::InvalidUtf8)?;
-            if text.chars().any(|ch| ch.is_control() && ch != '\\n' && ch != '\\t') {
+            if text.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
                 return Err(EncodeError::UnsupportedControl);
             }
         }
@@ -326,7 +326,7 @@ pub fn encode_send_message_with_encoding(
             if had_errors {
                 return Err(EncodeError::UnrepresentableCp932);
             }
-            if text.chars().any(|ch| ch.is_control() && ch != '\\n' && ch != '\\t') {
+            if text.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
                 return Err(EncodeError::UnsupportedControl);
             }
         }
