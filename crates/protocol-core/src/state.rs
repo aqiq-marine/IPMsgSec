@@ -55,7 +55,6 @@ pub enum StateError {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransitionOutcome {
     Added,
-    Refreshed,
     Removed,
     Unchanged,
 }
@@ -409,7 +408,7 @@ pub fn apply_event(
         PeerEvent::Joined {
             username,
             hostname,
-            observed_at: _,
+            observed_at,
         } => {
             match found {
                 Some(_index) => {
@@ -480,17 +479,17 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_join_refreshes_without_adding_a_second_peer() {
+    fn duplicate_join_is_idempotent_without_adding_a_second_peer() {
         let state = PeerState::empty();
         let first = apply_event(&state, joined(b"alice", b"pc", 10)).unwrap();
         let second = apply_event(&first.state, joined(b"alice", b"pc", 20)).unwrap();
-        assert_eq!(second.outcome, TransitionOutcome::Refreshed);
+        assert_eq!(second.outcome, TransitionOutcome::Unchanged);
         assert_eq!(second.state.len(), 1);
-        assert_eq!(second.state.peers()[0].last_seen(), 20);
+        assert_eq!(second.state.peers()[0].last_seen(), 10);
     }
 
     #[test]
-    fn stale_join_does_not_move_timestamp_backwards() {
+    fn duplicate_join_does_not_change_the_first_observation_timestamp() {
         let state = PeerState::empty();
         let first = apply_event(&state, joined(b"alice", b"pc", 20)).unwrap();
         let second = apply_event(&first.state, joined(b"alice", b"pc", 10)).unwrap();
