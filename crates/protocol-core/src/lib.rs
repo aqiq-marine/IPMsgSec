@@ -54,8 +54,8 @@ pub use discovery::{
 };
 pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
 pub use protocol::{
-    IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_MESSAGE_BODY_BYTES, MessageEncoding,
-    PeerIdentity, PeerJoinKind, ProtocolError, ProtocolEvent, classify_packet,
+    IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_MESSAGE_BODY_BYTES, MessageEncoding, PeerIdentity,
+    PeerJoinKind, ProtocolError, ProtocolEvent, classify_packet,
 };
 pub use state::{
     MAX_IDENTITY_BYTES, MAX_PEERS, Peer, PeerEvent, PeerState, StateError, TransitionOutcome,
