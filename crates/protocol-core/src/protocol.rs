@@ -587,3 +587,75 @@ mod tests {
         ));
     }
 }
+    #[test]
+    fn classifies_broadcast_absence_and_utf8_metadata_overrides_legacy_fields() {
+        let data = b"legacy-nick\\0legacy-group\\0\\nUN:alice-utf8\\nHN:host-utf8\\nNN:display-name\\nGN:chemistry\\n";
+        let mut parsed = packet(
+            b"legacy-user",
+            b"legacy-host",
+            CommandKind::BroadcastAbsence,
+            data,
+        );
+        parsed.command_word = 0x0100_0104;
+        parsed.option_flags = IPMSG_CAPUTF8OPT | IPMSG_ABSENCEOPT;
+
+        let event = classify_packet(&parsed).unwrap();
+        match event {
+            ProtocolEvent::PeerJoined {
+                identity,
+                kind,
+                supports_utf8,
+                is_absent,
+                nickname,
+                group,
+            } => {
+                assert_eq!(kind, PeerJoinKind::BroadcastAbsence);
+                assert!(supports_utf8);
+                assert!(is_absent);
+                assert_eq!(identity.username(), b"alice-utf8");
+                assert_eq!(identity.hostname(), b"host-utf8");
+                assert_eq!(nickname, Some(b"display-name".as_slice()));
+                assert_eq!(group, Some(b"chemistry".as_slice()));
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifies_broadcast_absence_without_absence_flag_as_return_to_presence() {
+        let mut parsed = packet(
+            b"alice",
+            b"pc",
+            CommandKind::BroadcastAbsence,
+            b"nickname",
+        );
+        parsed.command_word = 0x0100_0004;
+        parsed.option_flags = IPMSG_CAPUTF8OPT;
+        assert!(matches!(
+            classify_packet(&parsed),
+            Ok(ProtocolEvent::PeerJoined {
+                kind: PeerJoinKind::BroadcastAbsence,
+                is_absent: false,
+                supports_utf8: true,
+                nickname: Some(b"nickname"),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn rejects_malformed_utf8_discovery_metadata_without_emitting_event() {
+        let mut parsed = packet(
+            b"alice",
+            b"pc",
+            CommandKind::BroadcastAbsence,
+            b"nick\\0group\\0\\nUN:\xff\\n",
+        );
+        parsed.command_word = 0x0000_0104;
+        parsed.option_flags = IPMSG_ABSENCEOPT;
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::InvalidDiscoveryExtension)
+        );
+    }
+
