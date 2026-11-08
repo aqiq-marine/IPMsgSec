@@ -160,7 +160,7 @@ pub fn classify_packet<'a>(
         return Err(ProtocolError::InconsistentPacket);
     }
 
-    let message_encoding = if let CommandKind::SendMessage = packet.command {
+    if let CommandKind::SendMessage = packet.command {
         if packet.option_flags & !IPMSG_UTF8OPT != 0 {
             return Err(ProtocolError::UnsupportedMessageOptions);
         }
@@ -173,14 +173,7 @@ pub fn classify_packet<'a>(
         if packet.additional_data.contains(&0) {
             return Err(ProtocolError::UnsupportedMessageExtension);
         }
-        if packet.option_flags & IPMSG_UTF8OPT != 0 {
-            Some(MessageEncoding::Utf8)
-        } else {
-            Some(MessageEncoding::Cp932)
-        }
-    } else {
-        None
-    };
+    }
 
     let supports_utf8 = match packet.command {
         CommandKind::BroadcastEntry | CommandKind::AnswerEntry => {
@@ -219,7 +212,11 @@ pub fn classify_packet<'a>(
             ProtocolEvent::MessageReceived {
                 sender: identity,
                 body: packet.additional_data,
-                encoding: message_encoding.expect("SENDMSG encoding was selected above"),
+                encoding: if packet.option_flags & IPMSG_UTF8OPT != 0 {
+                    MessageEncoding::Utf8
+                } else {
+                    MessageEncoding::Cp932
+                },
             },
         CommandKind::Unsupported(command_id) =>
             return Err(ProtocolError::UnsupportedCommand(command_id)),
