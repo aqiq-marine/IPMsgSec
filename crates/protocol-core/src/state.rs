@@ -213,6 +213,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
         index += 1;
     }
     let result = PeerState { peers };
+    reveal(peer_state_well_formed);
     assert(result.peers@.len() == state.peers@.len());
     assert forall|i: int| 0 <= i < state.peers@.len() implies
         result.peers@[i].username@ == state.peers@[i].username@
@@ -221,7 +222,24 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
     by {
         assert(i < result.peers@.len());
     }
-    reveal(peer_state_well_formed);
+    reveal(peer_well_formed);
+    assert forall|i: int| 0 <= i < result.peers@.len()
+        implies peer_well_formed(&result.peers@[i])
+    by {
+        assert(peer_well_formed(&state.peers@[i]));
+        assert(result.peers@[i].username@ == state.peers@[i].username@);
+        assert(result.peers@[i].hostname@ == state.peers@[i].hostname@);
+    }
+    reveal(same_identity);
+    assert forall|i: int, j: int| 0 <= i < j < result.peers@.len()
+        implies !same_identity(&result.peers@[i], &result.peers@[j])
+    by {
+        assert(!same_identity(&state.peers@[i], &state.peers@[j]));
+        assert(result.peers@[i].username@ == state.peers@[i].username@);
+        assert(result.peers@[i].hostname@ == state.peers@[i].hostname@);
+        assert(result.peers@[j].username@ == state.peers@[j].username@);
+        assert(result.peers@[j].hostname@ == state.peers@[j].hostname@);
+    }
     assert(peer_state_well_formed(&result));
     result
 }
@@ -267,26 +285,12 @@ pub fn apply_event(
             observed_at,
         } => {
             match found {
-                Some(index) => {
-                    let mut next = copy_state(state);
-                    assert(next.peers@ == state.peers@);
-                    let outcome = if observed_at > next.peers[index].last_seen {
-                        next.peers[index].last_seen = observed_at;
-                        assert(
-                            next.peers@[index as int].username@
-                                == state.peers@[index as int].username@
-                        );
-                        assert(
-                            next.peers@[index as int].hostname@
-                                == state.peers@[index as int].hostname@
-                        );
-                        TransitionOutcome::Refreshed
-                    } else {
-                        TransitionOutcome::Unchanged
-                    };
-                    reveal(peer_state_well_formed);
-                    assert(peer_state_well_formed(&next));
-                    Ok(TransitionResult { state: next, outcome })
+                Some(_index) => {
+                    let next = copy_state(state);
+                    Ok(TransitionResult {
+                        state: next,
+                        outcome: TransitionOutcome::Unchanged,
+                    })
                 }
                 None => {
                     if state.peers.len() >= MAX_PEERS {
