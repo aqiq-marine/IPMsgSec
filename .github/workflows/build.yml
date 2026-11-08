@@ -1,0 +1,78 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Build target
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - rust
+          - desktop-frontend
+          - desktop-windows
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust workspace build
+    if: inputs.target == 'all' || inputs.target == 'rust'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+      - name: Build workspace
+        run: cargo build --workspace --all-targets
+
+  desktop-frontend:
+    name: Desktop frontend build
+    if: inputs.target == 'all' || inputs.target == 'desktop-frontend'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+
+  desktop-windows:
+    name: Windows Tauri build check
+    if: inputs.target == 'all' || inputs.target == 'desktop-windows'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Build frontend for Tauri context generation
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+      - name: Check Tauri desktop crate
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
