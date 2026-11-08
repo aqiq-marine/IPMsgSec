@@ -12,9 +12,9 @@ use std::net::{SocketAddr, UdpSocket};
 use encoding_rs::{SHIFT_JIS, UTF_8};
 
 use ipmsgsec_protocol_core::{
-    BoundedDatagram, IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_IDENTITY_BYTES,
-    MAX_MESSAGE_BODY_BYTES, MAX_PACKET_SIZE, MessageEncoding, ParseError, ProtocolAction,
-    ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
+    BoundedDatagram, IPMSG_CAPUTF8OPT, IPMSG_UTF8OPT, MAX_IDENTITY_BYTES, MAX_MESSAGE_BODY_BYTES,
+    MAX_PACKET_SIZE, MessageEncoding, ParseError, ProtocolAction, ProtocolError, ProtocolEvent,
+    ReplyTarget, classify_packet, parse_packet,
 };
 
 /// Conventional IP Messenger UDP port. Binding remains an explicit caller choice.
@@ -251,7 +251,10 @@ pub fn encode_broadcast_exit(
 /// CP932 is used for peers that have not advertised IPMSG_CAPUTF8OPT.
 /// UTF-8 is used only for peers whose capability advertisement was observed.
 pub fn encode_text_body(text: &str, encoding: MessageEncoding) -> Result<Vec<u8>, EncodeError> {
-    if text.chars().any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t')) {
+    if text
+        .chars()
+        .any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t'))
+    {
         return Err(EncodeError::UnsupportedControl);
     }
 
@@ -317,7 +320,10 @@ pub fn encode_send_message_with_encoding(
     match encoding {
         MessageEncoding::Utf8 => {
             let text = std::str::from_utf8(body).map_err(|_| EncodeError::InvalidUtf8)?;
-            if text.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
+            if text
+                .chars()
+                .any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
+            {
                 return Err(EncodeError::UnsupportedControl);
             }
         }
@@ -336,12 +342,7 @@ pub fn encode_send_message_with_encoding(
         MessageEncoding::Utf8 => IPMSG_UTF8OPT,
         MessageEncoding::Cp932 => 0,
     };
-    let mut packet = encode_identity_command(
-        packet_number,
-        username,
-        hostname,
-        32 | option,
-    )?;
+    let mut packet = encode_identity_command(packet_number, username, hostname, 32 | option)?;
     if packet.len().saturating_add(body.len()) > MAX_PACKET_SIZE {
         return Err(EncodeError::PacketTooLarge);
     }
@@ -558,7 +559,8 @@ mod tests {
             b"workstation",
             &body,
             MessageEncoding::Utf8,
-        ).unwrap();
+        )
+        .unwrap();
         let packet = parse_packet(&bytes).unwrap();
         assert_eq!(packet.command_word, 32 | IPMSG_UTF8OPT);
         assert_eq!(packet.option_flags, IPMSG_UTF8OPT);
@@ -588,7 +590,8 @@ mod tests {
             b"workstation",
             &body,
             MessageEncoding::Cp932,
-        ).unwrap();
+        )
+        .unwrap();
         let packet = parse_packet(&bytes).unwrap();
         assert_eq!(packet.command_word, 32);
         assert_eq!(packet.option_flags, 0);
