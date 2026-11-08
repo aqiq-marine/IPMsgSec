@@ -313,7 +313,13 @@ impl ApplicationSession {
                     peers_changed: false,
                 })
             }
-            ProtocolEvent::PeerJoined { identity, kind, nickname, group, .. } => {
+            ProtocolEvent::PeerJoined {
+                identity,
+                kind,
+                nickname,
+                group,
+                ..
+            } => {
                 let transition = apply_discovery_event(
                     &self.protocol_state,
                     &event,
@@ -511,6 +517,7 @@ mod tests {
             } if text == "こんにちは"
         ));
     }
+
     #[test]
     fn exposes_broadcast_absence_and_utf8_metadata_in_owned_app_event() {
         let mut transport = UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
