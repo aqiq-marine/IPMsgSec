@@ -44,8 +44,13 @@ impl<'a> BoundedDatagram<'a> {
 }
 
 pub mod parser;
+pub mod state;
 
 pub use parser::{CommandKind, MAX_PACKET_SIZE, Packet, ParseError, parse_packet};
+pub use state::{
+    MAX_IDENTITY_BYTES, MAX_PEERS, Peer, PeerEvent, PeerState, StateError,
+    TransitionOutcome, TransitionResult, apply_event, peer_state_well_formed,
+};
 
 #[cfg(test)]
 mod tests {
