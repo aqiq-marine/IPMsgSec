@@ -52,8 +52,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/verus"
           unzip -q "$archive" -d "$RUNNER_TEMP/verus"
           verifier="$(find "$RUNNER_TEMP/verus" -type f -name verus -perm -u+x -print -quit)"
+          cargo_verus="$(find "$RUNNER_TEMP/verus" -type f -name cargo-verus -perm -u+x -print -quit)"
           test -n "$verifier"
+          test -n "$cargo_verus"
+          verus_dir="$(dirname "$verifier")"
+          echo "$verus_dir" >> "$GITHUB_PATH"
           echo "VERUS_BIN=$verifier" >> "$GITHUB_ENV"
           echo "Verus executable: $verifier"
-      - name: Verify smoke proof
+          echo "cargo-verus executable: $cargo_verus"
+      - name: Verify standalone smoke proof
         run: "$VERUS_BIN" verification/smoke.rs
+      - name: Verify the runtime protocol-core crate
+        run: cargo verus verify -p ipmsgsec-protocol-core
