@@ -509,6 +509,28 @@ mod tests {
     }
 
     #[test]
+    fn preserves_unknown_discovery_flags_at_parse_layer_but_does_not_apply_them() {
+        let mut parsed = packet(
+            b"alice",
+            b"workstation",
+            CommandKind::BroadcastEntry,
+            b"opaque-extension",
+        );
+        let unknown_and_unimplemented = 0x0200_0000;
+        parsed.command_word = 0x0200_0001;
+        parsed.option_flags = unknown_and_unimplemented;
+
+        assert_eq!(parsed.command_word, 0x0200_0001);
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::UnsupportedOptions {
+                command_id: 1,
+                flags: unknown_and_unimplemented,
+            })
+        );
+    }
+
+    #[test]
     fn discovery_additional_data_is_not_interpreted_by_classifier() {
         let parsed = packet(
             b"alice",
