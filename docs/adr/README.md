@@ -23,5 +23,6 @@ Accepted ADRs should generally not be edited to rewrite history. Add a new ADR t
 | [0006](0006-conservative-ascii-messaging.md) | Use a conservative ASCII-only text-message subset | Superseded |
 | [0007](0007-utf8-negotiation-before-app-layer.md) | Implement UTF-8 capability negotiation before the application layer | Accepted |
 | [0008](0008-shared-application-layer.md) | Introduce a shared UI-independent application facade | Accepted |
+| [0009](0009-single-owner-session-worker.md) | Use a single-owner worker for session lifecycle and event distribution | Accepted |
 
 When a decision changes, add a new numbered ADR and update this index.
