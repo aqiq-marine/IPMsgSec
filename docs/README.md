@@ -23,3 +23,7 @@ Resolve these during implementation and record the evidence:
 - Handling of duplicate peer announcements, packet ordering, and stale peers.
 - Compatible Rust edition/toolchain and Verus revision.
 - Whether a later MVP increment adds TCP message bodies or remains UDP-only.
+
+
+- [MVP protocol subset](protocol.md): protocol fields, commands, source references, and unresolved compatibility questions.
+- [Toolchain](toolchain.md): pinned Verus/Rust versions, archive digest, and setup instructions.

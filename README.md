@@ -123,3 +123,15 @@ See [AGENTS.md](AGENTS.md) for repository-wide engineering rules and [docs/](doc
 ## License
 
 Not yet specified. Do not assume that this project is licensed for redistribution until a license is added.
+
+
+## Initial implementation baseline
+
+The initial workspace and verification smoke test are now present. See:
+- [Toolchain setup](docs/toolchain.md)
+- [MVP wire protocol subset](docs/protocol.md)
+- [Protocol core crate](crates/protocol-core/)
+- [Verus smoke proof](verification/smoke.rs)
+- [CI workflow](.github/workflows/ci.yml)
+
+The smoke proof checks bounded offset arithmetic only. The runtime datagram type currently enforces the MVP packet-size limit; no packet parser or end-to-end security theorem is claimed yet.

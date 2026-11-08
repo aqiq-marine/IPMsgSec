@@ -74,3 +74,8 @@ A user should be able to run two instances on a local network, discover the othe
 ## Non-goals for the first release
 
 The MVP does not promise resistance to traffic flooding, confidentiality, sender authentication, reliable delivery, or complete compatibility. These require separate designs and threat-model updates.
+
+
+## Wire-level starting point
+
+The initial command subset and protocol observations are recorded in [protocol.md](protocol.md). The base protocol uses UDP for messages and defaults to port 2425. The first implementation must confirm exact encoding and UTF-8 negotiation behavior rather than assuming every existing peer uses UTF-8.

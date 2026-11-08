@@ -102,3 +102,8 @@ These techniques find defects but do not replace proofs.
 - Is the verified function actually called by the application?
 - Can an unverified adapter alter/reinterpret data after the proof boundary?
 - Does the claim overstate what the theorem establishes?
+
+
+## Initial executable proof baseline
+
+The repository currently contains verification/smoke.rs, checked by the CI workflow using the pinned Verus release documented in [toolchain.md](toolchain.md). It proves a small checked-offset arithmetic contract. It is deliberately not described as a parser proof. The next proof target should be the actual bounded cursor/slice helper used by the runtime parser, with a documented connection between the verified function and executable parsing code.

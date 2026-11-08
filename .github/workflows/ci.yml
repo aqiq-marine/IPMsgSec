@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  VERUS_VERSION: "0.2026.11.02.8bf68ee"
+  VERUS_SHA256_X86_LINUX: "f3a0119292df8855e4435da8130bee1873b0e6a60c306accf81a08ea687bba3c"
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal \
+            --component rustfmt --component clippy
+          rustup default 1.99.1
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run tests
+        run: cargo test --workspace --all-targets
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  verus:
+    name: Verus proofs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Verus-required Rust components
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal \
+            --component rustc-dev --component llvm-tools
+          rustup default 1.99.1
+      - name: Download pinned Verus release
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/verus-$VERUS_VERSION-x86-linux.zip"
+          url="https://github.com/verus-lang/verus/releases/download/release/$VERUS_VERSION/verus-$VERUS_VERSION-x86-linux.zip"
+          curl --fail --location --retry 3 "$url" --output "$archive"
+          echo "$VERUS_SHA256_X86_LINUX  $archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/verus"
+          unzip -q "$archive" -d "$RUNNER_TEMP/verus"
+          verifier="$(find "$RUNNER_TEMP/verus" -type f -name verus -perm -u+x -print -quit)"
+          test -n "$verifier"
+          echo "VERUS_BIN=$verifier" >> "$GITHUB_ENV"
+          echo "Verus executable: $verifier"
+      - name: Verify smoke proof
+        run: "$VERUS_BIN" verification/smoke.rs
