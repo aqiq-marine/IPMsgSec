@@ -318,7 +318,6 @@ fn run(config: Config) -> Result<(), String> {
                     }
                 }
             }
-        } else if matches!(event, ProtocolEvent::PeerDeparted(_)) {
         }
 
         if let Some(action) = transition.actions.get(0) {
