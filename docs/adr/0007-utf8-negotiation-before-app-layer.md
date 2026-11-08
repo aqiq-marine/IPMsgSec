@@ -74,20 +74,20 @@ prematurely advertise UTF-8 support.
 
 ## Updated implementation order
 
-1. **PR 6 — UTF-8 capability negotiation:** capability advertisement and
+1. **Implementation PR 6 — UTF-8 capability negotiation:** capability advertisement and
    tracking, negotiated SENDMSG flags, UTF-8/CP932 encoding and decoding, and
    bounded error handling.
-2. **PR 7 — Shared application layer:** introduce an
+2. **Implementation PR 7 — Shared application layer:** introduce an
    `ipmsgsec-app` crate/API and move communication orchestration out of the
    CLI so both CLI and GUI can use the same service.
-3. **PR 8 — Session lifecycle and event distribution:** own protocol state
+3. **Implementation PR 8 — Session lifecycle and event distribution:** own protocol state
    and transport in a background worker/actor; define start/stop, command,
    event, and shutdown behavior.
-4. **PR 9 — Tauri 2 GUI MVP:** peer list, chat view, message composer, and
+4. **Implementation PR 9 — Tauri 2 GUI MVP:** peer list, chat view, message composer, and
    network settings, all using the shared application layer.
-5. **PR 10 — Message delivery semantics:** acknowledgements, deduplication,
+5. **Implementation PR 10 — Message delivery semantics:** acknowledgements, deduplication,
    retry policy, and explicit delivery status.
-6. **PR 11 — Persistence:** settings and message history, with bounded
+6. **Implementation PR 11 — Persistence:** settings and message history, with bounded
    storage behavior and an explicit retention policy.
 
 The numbering is a planning sequence, not a claim that these milestones are
