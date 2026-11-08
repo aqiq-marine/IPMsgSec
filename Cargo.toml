@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/protocol-core"]
+members = ["crates/protocol-core", "crates/transport-udp"]
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(verus_only)'] }
