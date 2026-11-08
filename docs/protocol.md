@@ -50,7 +50,9 @@ Upstream src/ipmsg.h defines:
 - IPMSG_UTF8OPT = 0x00800000: UTF-8 option for a packet/message.
 - IPMSG_SENDCHECKOPT = 0x00000100: request a receive check.
 
-The first implementation should prefer UTF-8-capable peers and explicitly negotiate/mark UTF-8 according to the protocol. Exact encoding rules for identity fields and compatibility with peers that do not advertise UTF-8 must be settled before claiming interoperability with those peers. Do not assume all legacy peers use UTF-8.
+The first text-message implementation deliberately sends ASCII-only bodies without `IPMSG_UTF8OPT`. ASCII has the same byte representation in CP932 and UTF-8, so the initial subset does not need to infer a peer's encoding capability. The CLI rejects non-ASCII outbound text, NUL, and terminal control bytes (TAB and LF are allowed). It caps the body at 4 KiB, independently of the 8 KiB datagram bound. Received message bytes remain opaque; the CLI renders them with byte escaping rather than assuming UTF-8 or emitting terminal control sequences.
+
+This is a conservative interoperability subset, not full multilingual support. UTF-8 capability advertisement (`IPMSG_CAPUTF8OPT`) and per-message `IPMSG_UTF8OPT` negotiation are deferred until peer capability is represented in the protocol state. CP932 encoding/decoding for peers without UTF-8 capability is also deferred. The first increment does not request `IPMSG_SENDCHECKOPT`, send `IPMSG_RECVMSG` acknowledgements, implement retries, or interpret NUL-separated attachment extensions.
 
 ## Parser requirements
 
