@@ -109,6 +109,7 @@ pub fn parse_discovery_data(data: &[u8]) -> Result<DiscoveryData<'_>, DiscoveryD
             let mut marker = 0;
             while marker + 1 < tail.len()
                 && !(tail[marker] == 0 && tail[marker + 1] == b'\n')
+                decreases tail.len() - marker,
             {
                 marker += 1;
             }
