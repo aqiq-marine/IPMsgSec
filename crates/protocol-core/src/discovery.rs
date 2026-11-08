@@ -181,8 +181,12 @@ pub fn apply_discovery_event(
         ProtocolEvent::PeerJoined {
             kind: PeerJoinKind::BroadcastEntry,
             ..
-        } => ActionList::answer_entry(reply_target),
-        _ => ActionList::empty(),
+        } => ActionList {
+            first: Some(ProtocolAction::SendAnswerEntry {
+                target: reply_target,
+            }),
+        },
+        _ => ActionList { first: None },
     };
 
     let next_state = ProtocolState {
