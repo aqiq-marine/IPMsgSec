@@ -130,7 +130,9 @@ pub fn parse_discovery_data(data: &[u8]) -> Result<DiscoveryData<'_>, DiscoveryD
 
     if let Some(extension) = metadata {
         let mut rest = extension;
-        while !rest.is_empty() {
+        while !rest.is_empty()
+            decreases rest.len(),
+        {
             let newline = match rest.iter().position(|byte| *byte == b'\n') {
                 Some(index) => index,
                 None => return Err(DiscoveryDataError::MalformedExtension),
