@@ -22,7 +22,7 @@ The MVP is a small LAN text messenger, not the whole IP Messenger feature set.
 - IPv4 UDP receive and send on the conventional IP Messenger port (exact configuration and interoperability behavior will be documented as implementation decisions).
 - A bounded parser for the packet subset required by the MVP.
 - Minimal peer discovery and a bounded peer table.
-- Plain-text message send and receive.
+- Plain-text message send and receive (initial CLI subset: ASCII-only outbound messages, 4 KiB body limit, explicit IPv4 targets).
 - Explicit limits on datagram size, field lengths, and in-memory collections.
 - Deterministic protocol state transitions, separated from socket I/O.
 - Unit tests, adversarial parser tests, and Verus proofs for the pure protocol core.
@@ -146,3 +146,10 @@ explicit bind and announcement destinations; see
 examples, same-host multi-instance tests, trust boundaries, and the selected
 external interoperability target. This does not imply that external-client
 interoperability has already been tested.
+
+## Text messaging
+
+The CLI can send an unflagged `IPMSG_SENDMSG` packet to explicit IPv4 targets
+and display received message bytes safely. The first increment is ASCII-only;
+UTF-8 negotiation, CP932 conversion, acknowledgements, and retries are not yet
+implemented. See [CLI discovery and messaging](docs/cli-discovery.md).
