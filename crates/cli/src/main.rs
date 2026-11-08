@@ -192,7 +192,7 @@ fn display_message(
             sender.username().escape_ascii(),
             sender.hostname().escape_ascii(),
             source,
-            body.iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            body.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join("")
         ),
     }
 }
