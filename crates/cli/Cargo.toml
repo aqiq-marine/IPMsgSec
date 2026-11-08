@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 ipmsgsec-protocol-core = { path = "../protocol-core" }
+ipmsgsec-app = { path = "../app" }
 ipmsgsec-transport-udp = { path = "../transport-udp" }
 
 [lints]
