@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ipmsgsec_app::{
-    AppEvent, ApplicationSession, PeerInfo, PeerIdentityDto, TextDecodeFailure,
+    AppEvent, ApplicationSession, PeerIdentityDto, PeerInfo, TextDecodeFailure,
     encode_message_for_peer,
 };
 use ipmsgsec_transport_udp::{
@@ -318,10 +318,7 @@ fn run(config: Config) -> Result<(), String> {
                 peer.supports_utf8,
             ) {
                 Ok(encoded) => match transport.send_to(target, &encoded.bytes) {
-                    Ok(_) => println!(
-                        "Sent SENDMSG to {target} using {:?}",
-                        encoded.encoding
-                    ),
+                    Ok(_) => println!("Sent SENDMSG to {target} using {:?}", encoded.encoding),
                     Err(error) => eprintln!("could not send SENDMSG to {target}: {error}"),
                 },
                 Err(error) => eprintln!("cannot encode message for {target}: {error}"),
