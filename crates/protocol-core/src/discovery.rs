@@ -9,8 +9,6 @@ use vstd::prelude::*;
 
 verus! {
 
-use crate::state::peer_state_well_formed;
-
 /// Current maximum number of abstract actions emitted by one transition.
 pub const MAX_ACTIONS: usize = 1;
 
@@ -64,7 +62,7 @@ pub struct ProtocolState {
 }
 
 pub closed spec fn protocol_state_well_formed(state: &ProtocolState) -> bool {
-    peer_state_well_formed(&state.peers)
+    crate::state::peer_state_well_formed(&state.peers)
 }
 
 impl ProtocolState {
@@ -181,7 +179,7 @@ pub fn apply_discovery_event(
         peers: applied.state,
     };
     reveal(protocol_state_well_formed);
-    assert(peer_state_well_formed(&next_state.peers));
+    assert(crate::state::peer_state_well_formed(&next_state.peers));
     assert(protocol_state_well_formed(&next_state));
     reveal(action_list_well_formed);
     assert(action_list_well_formed(&actions));
