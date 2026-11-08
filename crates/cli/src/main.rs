@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use std::process::ExitCode;
@@ -113,7 +112,7 @@ where
         if body.is_empty() {
             return Err("--message must not be empty".to_owned());
         }
-        if body.chars().any(|ch| ch == '\\0' || (ch.is_control() && ch != '\\n' && ch != '\\t')) {
+        if body.chars().any(|ch| ch == '\0' || (ch.is_control() && ch != '\n' && ch != '\t')) {
             return Err("--message may contain only text, TAB, and LF; NUL and other controls are rejected".to_owned());
         }
     }
@@ -240,7 +239,6 @@ fn run(config: Config) -> Result<(), String> {
 
     let started = Instant::now();
     let mut state = ProtocolState::empty();
-    let mut capability_by_source: HashMap<SocketAddr, bool> = HashMap::new();
     let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
 
     while started.elapsed() < config.duration {
@@ -291,7 +289,6 @@ fn run(config: Config) -> Result<(), String> {
         state = transition.state;
 
         if let ProtocolEvent::PeerJoined { supports_utf8, .. } = event {
-            capability_by_source.insert(received.source(), supports_utf8);
             if let Some(index) = pending_send_to.iter().position(|target| *target == received.source()) {
                 let target = pending_send_to.remove(index);
                 if let Some(body) = &config.message {
@@ -322,7 +319,6 @@ fn run(config: Config) -> Result<(), String> {
                 }
             }
         } else if matches!(event, ProtocolEvent::PeerDeparted(_)) {
-            capability_by_source.remove(&received.source());
         }
 
         if let Some(action) = transition.actions.get(0) {
@@ -486,8 +482,16 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_ascii_and_terminal_controls_in_message() {
-        for body in ["こんにちは", "hello\0world", "hello\u{1b}[31m"] {
+    fn accepts_unicode_message_and_rejects_terminal_controls() {
+        let mut values = args();
+        values.extend(
+            ["--send-to", "127.0.0.1:2427", "--message", "こんにちは"]
+                .into_iter()
+                .map(str::to_owned),
+        );
+        assert_eq!(parse_config(values).unwrap().message.as_deref(), Some("こんにちは"));
+
+        for body in ["hello\0world", "hello\u{1b}[31m"] {
             let mut values = args();
             values.extend(
                 ["--send-to", "127.0.0.1:2427", "--message", body]
