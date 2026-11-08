@@ -10,6 +10,9 @@ use vstd::prelude::*;
 
 verus! {
 
+/// Maximum plain-text body size for the initial message subset.
+pub const MAX_MESSAGE_BODY_BYTES: usize = 4 * 1024;
+
 /// Distinguishes an unsolicited discovery announcement from its reply.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PeerJoinKind {
@@ -68,6 +71,10 @@ pub enum ProtocolError {
     InvalidIdentity,
     UnsupportedCommand(u8),
     InconsistentPacket,
+    UnsupportedMessageOptions,
+    EmptyMessageBody,
+    MessageBodyTooLong,
+    UnsupportedMessageExtension,
 }
 
 pub closed spec fn peer_identity_well_formed(identity: &PeerIdentity) -> bool {
@@ -136,6 +143,21 @@ pub fn classify_packet<'a>(
     };
     if !command_matches || packet.option_flags != (packet.command_word & !0xffu32) {
         return Err(ProtocolError::InconsistentPacket);
+    }
+
+    if let CommandKind::SendMessage = packet.command {
+        if packet.option_flags != 0 {
+            return Err(ProtocolError::UnsupportedMessageOptions);
+        }
+        if packet.additional_data.is_empty() {
+            return Err(ProtocolError::EmptyMessageBody);
+        }
+        if packet.additional_data.len() > MAX_MESSAGE_BODY_BYTES {
+            return Err(ProtocolError::MessageBodyTooLong);
+        }
+        if packet.additional_data.contains(&0) {
+            return Err(ProtocolError::UnsupportedMessageExtension);
+        }
     }
 
     let identity = make_identity(packet.username, packet.hostname)?;
@@ -255,6 +277,49 @@ mod tests {
             }
             other => panic!("unexpected event: {other:?}"),
         }
+    }
+
+    #[test]
+    fn rejects_send_message_with_unimplemented_option_flags() {
+        let mut parsed = packet(b"alice", b"workstation", CommandKind::SendMessage, b"hello");
+        parsed.command_word = 0x0100_0020;
+        parsed.option_flags = 0x0100_0000;
+        assert_eq!(
+            classify_packet(&parsed),
+            Err(ProtocolError::UnsupportedMessageOptions)
+        );
+    }
+
+    #[test]
+    fn rejects_empty_oversized_and_extension_message_bodies() {
+        let empty = packet(b"alice", b"workstation", CommandKind::SendMessage, b"");
+        assert_eq!(
+            classify_packet(&empty),
+            Err(ProtocolError::EmptyMessageBody)
+        );
+
+        let oversized = [b'a'; MAX_MESSAGE_BODY_BYTES + 1];
+        let too_long = packet(
+            b"alice",
+            b"workstation",
+            CommandKind::SendMessage,
+            &oversized,
+        );
+        assert_eq!(
+            classify_packet(&too_long),
+            Err(ProtocolError::MessageBodyTooLong)
+        );
+
+        let extension = packet(
+            b"alice",
+            b"workstation",
+            CommandKind::SendMessage,
+            b"body\\0attachment",
+        );
+        assert_eq!(
+            classify_packet(&extension),
+            Err(ProtocolError::UnsupportedMessageExtension)
+        );
     }
 
     #[test]
