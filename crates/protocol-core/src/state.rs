@@ -195,7 +195,7 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
             && result.peers@[i].last_seen == state.peers@[i].last_seen,
         peer_state_well_formed(&result),
 {
-    let mut peers = Vec::new();
+    let mut peers: Vec<Peer> = Vec::new();
     let mut index: usize = 0;
     while index < state.peers.len()
         invariant
