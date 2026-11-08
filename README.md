@@ -82,6 +82,11 @@ Keep socket I/O, clocks, filesystem operations, and UI outside the verified core
 .
 ├── README.md
 ├── AGENTS.md
+├── crates/
+│   ├── protocol-core/
+│   ├── transport-udp/
+│   ├── app/
+│   └── cli/
 ├── docs/
 │   ├── README.md
 │   ├── architecture.md
@@ -154,3 +159,13 @@ per destination when sending `IPMSG_SENDMSG`. It decodes incoming messages
 according to `IPMSG_UTF8OPT` and displays malformed bytes safely. The UDP
 adapter and CLI remain unverified; acknowledgements, retries, and attachments
 are not yet implemented. See [CLI discovery and messaging](docs/cli-discovery.md).
+
+
+## Shared application API
+
+The `ipmsgsec-app` crate is the UI-independent application facade used by
+the CLI and intended for the future desktop GUI. It provides owned,
+serializable peer/message/status/error DTOs and centralizes event processing
+and message-encoding selection. The current session is synchronous and
+single-owner; the background worker and command/event lifecycle are the next
+milestone. See [Shared application layer](docs/application-layer.md).
