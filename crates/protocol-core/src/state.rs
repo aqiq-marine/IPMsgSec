@@ -310,7 +310,11 @@ mod tests {
     use super::*;
 
     fn joined<'a>(username: &'a [u8], hostname: &'a [u8], observed_at: u64) -> PeerEvent<'a> {
-        PeerEvent::Joined { username, hostname, observed_at }
+        PeerEvent::Joined {
+            username,
+            hostname,
+            observed_at,
+        }
     }
 
     fn departed<'a>(username: &'a [u8], hostname: &'a [u8]) -> PeerEvent<'a> {
