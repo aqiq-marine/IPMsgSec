@@ -334,27 +334,27 @@ fn send_entry(
     packet_numbers: &mut PacketNumbers,
     events: &SyncSender<SessionEvent>,
     dropped: &mut u64,
-) {
-    let packet_number = match packet_numbers.take() {
-        Ok(number) => number,
-        Err(error) => {
-            emit(events, SessionEvent::TransportError { message: error.to_string() }, dropped);
-            return;
-        }
-    };
-    let packet = match encode_broadcast_entry(packet_number, username, hostname) {
-        Ok(packet) => packet,
-        Err(error) => {
-            emit(events, SessionEvent::TransportError { message: error.to_string() }, dropped);
-            return;
-        }
-    };
+) -> Result<(), ServiceError> {
+    let packet_number = packet_numbers.take()?;
+    let packet = encode_broadcast_entry(packet_number, username, hostname)
+        .map_err(|_| ServiceError::OperationFailed)?;
+    let mut failed = false;
     for target in targets {
         if let Err(error) = transport.send_to(*target, &packet) {
-            emit(events, SessionEvent::TransportError {
-                message: format!("could not send BR_ENTRY to {target}: {error}"),
-            }, dropped);
+            failed = true;
+            emit(
+                events,
+                SessionEvent::TransportError {
+                    message: format!("could not send BR_ENTRY to {target}: {error}"),
+                },
+                dropped,
+            );
         }
+    }
+    if failed {
+        Err(ServiceError::DatagramSendFailed)
+    } else {
+        Ok(())
     }
 }
 
@@ -374,7 +374,7 @@ fn run_worker(
     emit(&events, SessionEvent::Started {
         local_address: transport.local_addr().unwrap_or(config.bind_address),
     }, &mut dropped_events);
-    send_entry(
+    let _ = send_entry(
         &transport,
         &config.announce_to,
         &config.username,
@@ -389,7 +389,7 @@ fn run_worker(
         loop {
             match commands.try_recv() {
                 Ok(WorkerCommand::Discover(reply)) => {
-                    send_entry(
+                    let result = send_entry(
                         &transport,
                         &config.announce_to,
                         &config.username,
@@ -398,7 +398,7 @@ fn run_worker(
                         &events,
                         &mut dropped_events,
                     );
-                    let _ = reply.send(Ok(()));
+                    let _ = reply.send(result);
                 }
                 Ok(WorkerCommand::SendMessage { target, text, reply }) => {
                     let result = match peers.get(&target) {
