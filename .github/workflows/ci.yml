@@ -59,7 +59,7 @@ jobs:
           echo "$verus_dir" >> "$GITHUB_PATH"
           echo "VERUS_BIN=$verifier" >> "$GITHUB_ENV"
           echo "Verus executable: $verifier"
-          echo "cargo-verus executable: $cargo_verus"
+          printf 'cargo-verus executable path: %s\n' "$cargo_verus"
       - name: Verify standalone smoke proof
         run: "$VERUS_BIN" verification/smoke.rs
       - name: Verify the runtime protocol-core crate
