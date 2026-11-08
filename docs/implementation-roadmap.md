@@ -24,13 +24,14 @@ Protocol model and event classification (incrementally verified)
 Pure state transition + abstract protocol actions (verified)
         |
         v
-UDP sender / CLI (unverified)
+UDP sender / application layer / CLI or GUI (unverified)
 ```
 
 - The core accepts bounded byte slices and explicit timestamps; it does not read clocks, access sockets, spawn processes, or perform I/O.
 - Parsing and protocol classification borrow packet data where practical. Do not allocate from attacker-controlled lengths.
 - State transitions return new state rather than mutating the caller's state.
 - The transport is responsible for receiving and sending datagrams, interface selection, broadcast behavior, and translating I/O failures.
+- CLI and GUI must share one application layer; neither UI should independently orchestrate protocol state and UDP transport.
 - Never claim whole-application verification solely from proofs of the core.
 
 ## Current baseline
@@ -122,7 +123,68 @@ Implemented in the initial `ipmsgsec-cli` text-message increment:
 - Restrict outbound messages to printable ASCII plus TAB/LF. ASCII is byte-compatible with both CP932 and UTF-8, so this subset does not claim UTF-8 negotiation.
 - Do not request SENDCHECK, send RECVMSG acknowledgements, retry, or parse attachment extensions.
 
-The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation, CP932 support, delivery acknowledgements, retries, and attachment handling remain deferred.
+The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation and CP932 support are the next protocol milestone (Implementation PR 6); delivery acknowledgements, retries, and attachment handling remain deferred.
+
+## Next implementation sequence
+
+The next milestones intentionally complete wire-encoding negotiation before introducing the shared application API. This avoids baking the current ASCII-only limitation into the interfaces shared by the CLI and future GUI. See [ADR 0007](adr/0007-utf8-negotiation-before-app-layer.md).
+
+### Implementation PR 6 — UTF-8 capability negotiation
+
+- Verify the exact command-specific wire semantics of `IPMSG_CAPUTF8OPT` and `IPMSG_UTF8OPT` against the protocol specification and representative clients.
+- Add bounded peer capability state and parse remote capability advertisements.
+- Advertise local UTF-8 support in the appropriate discovery packets.
+- Select the SENDMSG UTF-8 flag only for peers that advertised support.
+- Decode UTF-8-marked messages as UTF-8 and unflagged legacy messages as CP932, following the verified protocol rules.
+- Specify deterministic behavior for malformed UTF-8, CP932 conversion failures, unsupported flags, and unknown peer capability. Do not silently reinterpret malformed data using a different encoding.
+- Preserve the 4 KiB body limit and datagram bound across encoding conversion.
+- Add tests for capability state transitions, outgoing encoding/flags, incoming decoding, malformed data, and legacy-peer fallback.
+- Update the protocol reference and interoperability test matrix with actual evidence.
+
+Acceptance: capability state is bounded; unsupported or malformed data is handled explicitly; no peer is treated as UTF-8-capable without an observed advertisement; existing ASCII behavior remains valid; Rust tests, Clippy, formatting, and Verus CI pass. Only pure protocol decisions actually covered by Verus may be described as proved.
+
+### Implementation PR 7 — Shared application layer
+
+- Add an `ipmsgsec-app` crate that owns application-level orchestration behind a UI-independent API.
+- Move communication orchestration out of the CLI and make the CLI a client of this API.
+- Define owned, serializable application DTOs for peers, messages, errors, and status. Do not expose borrowed parser slices or transport-specific socket handles to a GUI.
+- Represent encoding and decoding failures explicitly; do not erase the distinction between wire bytes and decoded text.
+- Keep protocol-core and transport-udp as lower-level dependencies. The application layer must not duplicate protocol parsing.
+
+Acceptance: CLI behavior is preserved through the shared API; application tests cover message/peer operations; protocol-core's proof boundary is unchanged.
+
+### Implementation PR 8 — Session lifecycle and event distribution
+
+- Give one background worker/actor sole ownership of the mutable protocol session and UDP transport.
+- Define commands such as start, stop, discover, and send-message, plus events such as peer joined/updated/departed, message received, and transport error.
+- Define bounded queues, shutdown behavior, and error propagation.
+- Initially wrap the existing synchronous socket implementation with a worker thread and channels unless implementation evidence justifies adopting an async runtime.
+- Ensure snapshots can be queried separately from event notifications.
+
+Acceptance: lifecycle and event ordering are tested; shutdown does not leave a worker or socket running; queue limits and overload behavior are explicit.
+
+### Implementation PR 9 — Tauri 2 GUI MVP
+
+- Add a Tauri 2 desktop shell with a TypeScript/React frontend.
+- Invoke the shared application API through a narrow Rust command boundary.
+- Use events for state-change notifications and commands for request/response operations or snapshots.
+- Implement peer list, chat view, message composer, and network settings.
+- Keep frontend DTOs owned and serializable; never let the frontend directly manipulate protocol-core state or UDP sockets.
+- Clearly distinguish observed peer identity from authenticated identity. No authentication is currently provided.
+
+Acceptance: GUI and CLI use the same application layer; GUI tests cover rendering/state mapping where practical; the protocol-core proof target remains unchanged.
+
+### Implementation PR 10 — Message delivery semantics
+
+- Specify and implement acknowledgements, duplicate suppression, retry limits/backoff, and delivery status.
+- Do not present successful UDP submission as proof of remote delivery.
+- Keep retries and message queues bounded.
+
+### Implementation PR 11 — Persistence
+
+- Add persistence for settings and message history only after defining schema, migration, retention, and deletion behavior.
+- Treat stored message content and peer metadata as untrusted data when loaded.
+- Keep filesystem/database operations outside protocol-core.
 
 ## Protocol decisions to resolve
 
