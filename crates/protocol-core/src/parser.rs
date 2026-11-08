@@ -130,8 +130,7 @@ pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseErr
                 && packet.username.len() > 0
                 && packet.hostname.len() > 0
                 && packet.additional_data.len() <= MAX_PACKET_SIZE
-                && packet.option_flags == (packet.command_word & !0xffu32)
-                && packet.command == classify_command((packet.command_word & 0xff) as u8),
+                && packet.option_flags == (packet.command_word & !0xffu32),
             Err(_) => true,
         }
 {
