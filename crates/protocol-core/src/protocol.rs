@@ -592,7 +592,7 @@ mod tests {
 
     #[test]
     fn classifies_broadcast_absence_and_utf8_metadata_overrides_legacy_fields() {
-        let data = b"legacy-nick\\0legacy-group\\0\\nUN:alice-utf8\\nHN:host-utf8\\nNN:display-name\\nGN:chemistry\\n";
+        let data = b"legacy-nick\0legacy-group\0\nUN:alice-utf8\nHN:host-utf8\nNN:display-name\nGN:chemistry\n";
         let mut parsed = packet(
             b"legacy-user",
             b"legacy-host",
@@ -646,7 +646,7 @@ mod tests {
             b"alice",
             b"pc",
             CommandKind::BroadcastAbsence,
-            b"nick\\0group\\0\\nUN:\xff\\n",
+            b"nick\0group\0\nUN:\xff\n",
         );
         parsed.command_word = 0x0000_0104;
         parsed.option_flags = IPMSG_ABSENCEOPT;
