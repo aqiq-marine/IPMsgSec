@@ -114,10 +114,7 @@ pub fn classify_packet<'a>(
         return Err(ProtocolError::InconsistentPacket);
     }
 
-    let identity = match make_identity(packet.username, packet.hostname) {
-        Ok(identity) => identity,
-        Err(error) => return Err(error),
-    };
+    let identity = make_identity(packet.username, packet.hostname)?;
 
     let event = match packet.command {
         CommandKind::BroadcastEntry | CommandKind::AnswerEntry =>
