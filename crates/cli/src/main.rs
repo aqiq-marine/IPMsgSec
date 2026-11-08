@@ -268,9 +268,7 @@ fn run(config: Config) -> Result<(), String> {
                     }
                 }
             }
-            Ok(ipmsgsec_app::SessionEvent::MessageSubmitted { target, encoding }) => {
-                println!("UDP accepted message for {target} using {encoding:?}");
-            }
+            Ok(ipmsgsec_app::SessionEvent::MessageSubmitted { .. }) => {}
             Ok(ipmsgsec_app::SessionEvent::TransportError { message }) => {
                 eprintln!("transport/application error: {message}");
             }
