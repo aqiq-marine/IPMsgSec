@@ -152,7 +152,13 @@ fn sender_delivers_message_to_another_cli_instance() {
     let addresses = reserve_addresses(2);
     let receiver = spawn_instance("receiver", addresses[0], &[addresses[1]], 3);
     thread::sleep(Duration::from_millis(150));
-    let sender = spawn_message_sender(addresses[1], addresses[0], addresses[0], "hello: from cli", 2);
+    let sender = spawn_message_sender(
+        addresses[1],
+        addresses[0],
+        addresses[0],
+        "hello: from cli",
+        2,
+    );
 
     let receiver_output = finish(receiver);
     let sender_output = finish(sender);
