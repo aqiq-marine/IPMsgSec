@@ -62,6 +62,13 @@ the other two endpoints as repeated `--announce-to` arguments. Each instance
 sends BR_ENTRY at startup, answers BR_ENTRY directly with ANSENTRY, updates
 its bounded peer table, and sends BR_EXIT on normal timeout completion.
 
+The automated `crates/cli/tests/loopback_discovery.rs` integration tests spawn
+real CLI subprocesses on loopback. One test exercises two instances, direct
+ANSENTRY replies, and normal-shutdown BR_EXIT processing; another starts three
+instances and checks that each observes the other two. These tests exercise
+the local host's UDP behavior, not subnet broadcast or external-client
+interoperability.
+
 ## Packet handling
 
 - Startup sends `1:<packet-number>:<username>:<hostname>:1:` (BR_ENTRY).
