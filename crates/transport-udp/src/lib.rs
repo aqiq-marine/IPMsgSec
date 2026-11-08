@@ -112,7 +112,10 @@ impl std::fmt::Display for SendError {
             Self::Encode(error) => write!(f, "cannot encode answer-entry packet: {error}"),
             Self::Io(error) => write!(f, "UDP send failed: {error}"),
             Self::ShortDatagramWrite { expected, actual } => {
-                write!(f, "short UDP send: expected {expected} bytes, sent {actual}")
+                write!(
+                    f,
+                    "short UDP send: expected {expected} bytes, sent {actual}"
+                )
             }
         }
     }
@@ -272,12 +275,8 @@ impl UdpTransport {
                 if target != received.reply_target {
                     return Err(SendError::TargetMismatch);
                 }
-                let payload = encode_answer_entry(
-                    packet_number,
-                    local_username,
-                    local_hostname,
-                )
-                .map_err(SendError::Encode)?;
+                let payload = encode_answer_entry(packet_number, local_username, local_hostname)
+                    .map_err(SendError::Encode)?;
                 let sent = self
                     .socket
                     .send_to(&payload, received.source)
@@ -344,8 +343,7 @@ mod tests {
 
     #[test]
     fn receives_and_replies_to_the_original_source() {
-        let mut transport =
-            UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let mut transport = UdpTransport::bind("127.0.0.1:0".parse().unwrap()).unwrap();
         transport
             .set_read_timeout(Some(std::time::Duration::from_secs(2)))
             .unwrap();
