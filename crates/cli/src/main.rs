@@ -55,7 +55,8 @@ where
             .ok_or_else(|| format!("missing value for {flag}\n{}", usage()))?;
         match flag.as_str() {
             "--bind" => {
-                bind = Some(SocketAddr::from_str(&value).map_err(|e| format!("invalid --bind: {e}"))?);
+                bind =
+                    Some(SocketAddr::from_str(&value).map_err(|e| format!("invalid --bind: {e}"))?);
             }
             "--announce-to" => {
                 announce_to.push(
@@ -92,7 +93,9 @@ where
     let hostname = hostname.ok_or_else(|| "--hostname is required".to_owned())?;
     for (label, value) in [("--username", &username), ("--hostname", &hostname)] {
         if value.is_empty() || !value.is_ascii() || value.contains(':') {
-            return Err(format!("{label} must be non-empty ASCII and must not contain ':'"));
+            return Err(format!(
+                "{label} must be non-empty ASCII and must not contain ':'"
+            ));
         }
     }
 
@@ -114,8 +117,7 @@ impl PacketNumbers {
         let elapsed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| format!("system clock is before UNIX epoch: {error}"))?;
-        let seed = u64::try_from(elapsed.as_nanos())
-            .unwrap_or(u64::MAX.saturating_sub(1));
+        let seed = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX.saturating_sub(1));
         Ok(Self { next: seed })
     }
 
@@ -194,7 +196,10 @@ fn run(config: Config) -> Result<(), String> {
         let event = match received.classify() {
             Ok(event) => event,
             Err(error) => {
-                eprintln!("ignored malformed/unsupported datagram from {}: {error:?}", received.source());
+                eprintln!(
+                    "ignored malformed/unsupported datagram from {}: {error:?}",
+                    received.source()
+                );
                 continue;
             }
         };
@@ -230,8 +235,12 @@ fn run(config: Config) -> Result<(), String> {
 
         if changed {
             match event {
-                ProtocolEvent::PeerJoined { .. } => println!("Peer joined from {}", received.source()),
-                ProtocolEvent::PeerDeparted(_) => println!("Peer departed from {}", received.source()),
+                ProtocolEvent::PeerJoined { .. } => {
+                    println!("Peer joined from {}", received.source())
+                }
+                ProtocolEvent::PeerDeparted(_) => {
+                    println!("Peer departed from {}", received.source())
+                }
                 ProtocolEvent::MessageReceived { .. } => {}
             }
             display_peers(&state);
@@ -257,7 +266,10 @@ fn run(config: Config) -> Result<(), String> {
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
-    if arguments.iter().any(|argument| argument == "--help" || argument == "-h") {
+    if arguments
+        .iter()
+        .any(|argument| argument == "--help" || argument == "-h")
+    {
         println!("{}", usage());
         return ExitCode::SUCCESS;
     }
@@ -285,10 +297,14 @@ mod tests {
 
     fn args() -> Vec<String> {
         [
-            "--bind", "127.0.0.1:2425",
-            "--announce-to", "127.0.0.1:2426",
-            "--username", "alice",
-            "--hostname", "workstation",
+            "--bind",
+            "127.0.0.1:2425",
+            "--announce-to",
+            "127.0.0.1:2426",
+            "--username",
+            "alice",
+            "--hostname",
+            "workstation",
         ]
         .into_iter()
         .map(str::to_owned)
