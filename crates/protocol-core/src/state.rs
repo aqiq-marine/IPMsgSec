@@ -88,6 +88,16 @@ pub closed spec fn peer_state_well_formed(state: &PeerState) -> bool {
                 ==> !same_identity(&state.peers@[i], &state.peers@[j])
 }
 
+closed spec fn no_peer_with_identity(
+    peers: &[Peer],
+    username: &[u8],
+    hostname: &[u8],
+) -> bool {
+    forall|j: int| 0 <= j < peers.len() as int
+        ==> peers@[j].username@ != username@
+            || peers@[j].hostname@ != hostname@
+}
+
 /// Find the first peer with the requested byte-exact identity.
 fn find_peer_index(
     peers: &[Peer],
@@ -104,9 +114,7 @@ fn find_peer_index(
                     ==> peers@[j].username@ != username@
                         || peers@[j].hostname@ != hostname@,
             None =>
-                forall|j: int| 0 <= j < peers.len() as int
-                    ==> peers@[j].username@ != username@
-                        || peers@[j].hostname@ != hostname@,
+                no_peer_with_identity(peers, username, hostname),
         }
 {
     let mut index: usize = 0;
@@ -244,6 +252,125 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
     result
 }
 
+
+fn append_peer(
+    state: &PeerState,
+    username: &[u8],
+    hostname: &[u8],
+    observed_at: u64,
+) -> (result: PeerState)
+    requires
+        peer_state_well_formed(state),
+        username.len() > 0 && username.len() <= MAX_IDENTITY_BYTES,
+        hostname.len() > 0 && hostname.len() <= MAX_IDENTITY_BYTES,
+        state.peers.len() < MAX_PEERS,
+        no_peer_with_identity(state.peers.as_slice(), username, hostname),
+    ensures
+        peer_state_well_formed(&result),
+{
+    let mut next = copy_state(state);
+    let old_len = next.peers.len();
+    let copied_username = copy_bytes(username);
+    let copied_hostname = copy_bytes(hostname);
+    assert(copied_username@ == username@);
+    assert(copied_hostname@ == hostname@);
+    next.peers.push(Peer {
+        username: copied_username,
+        hostname: copied_hostname,
+        last_seen: observed_at,
+    });
+
+    reveal(peer_state_well_formed);
+    reveal(peer_well_formed);
+    reveal(same_identity);
+    assert(next.peers@.len() == old_len as int + 1);
+    assert forall|i: int| 0 <= i < next.peers@.len()
+        implies peer_well_formed(&next.peers@[i])
+    by {
+        if i < old_len as int {
+            assert(next.peers@[i].username@ == state.peers@[i].username@);
+            assert(next.peers@[i].hostname@ == state.peers@[i].hostname@);
+            assert(peer_well_formed(&state.peers@[i]));
+        } else {
+            assert(i == old_len as int);
+            assert(next.peers@[i].username@ == username@);
+            assert(next.peers@[i].hostname@ == hostname@);
+        }
+    }
+    assert forall|i: int, j: int| 0 <= i < j < next.peers@.len()
+        implies !same_identity(&next.peers@[i], &next.peers@[j])
+    by {
+        if j < old_len as int {
+            assert(next.peers@[i].username@ == state.peers@[i].username@);
+            assert(next.peers@[i].hostname@ == state.peers@[i].hostname@);
+            assert(next.peers@[j].username@ == state.peers@[j].username@);
+            assert(next.peers@[j].hostname@ == state.peers@[j].hostname@);
+            assert(!same_identity(&state.peers@[i], &state.peers@[j]));
+        } else {
+            assert(j == old_len as int);
+            assert(i < old_len as int);
+            assert(next.peers@[i].username@ == state.peers@[i].username@);
+            assert(next.peers@[i].hostname@ == state.peers@[i].hostname@);
+            assert(next.peers@[j].username@ == username@);
+            assert(next.peers@[j].hostname@ == hostname@);
+            assert(no_peer_with_identity(state.peers.as_slice(), username, hostname));
+        }
+    }
+    assert(next.peers@.len() <= MAX_PEERS as int);
+    assert(peer_state_well_formed(&next));
+    next
+}
+
+fn remove_peer_at(state: &PeerState, index: usize) -> (result: PeerState)
+    requires
+        peer_state_well_formed(state),
+        index < state.peers.len(),
+    ensures
+        peer_state_well_formed(&result),
+{
+    let mut next = copy_state(state);
+    let old_peers = next.peers@;
+    next.peers.remove(index);
+    assert(next.peers@ == old_peers.remove(index as int));
+
+    reveal(peer_state_well_formed);
+    reveal(peer_well_formed);
+    reveal(same_identity);
+    assert(next.peers@.len() + 1 == old_peers.len());
+    assert forall|i: int| 0 <= i < next.peers@.len()
+        implies peer_well_formed(&next.peers@[i])
+    by {
+        if i < index as int {
+            assert(next.peers@[i].username@ == old_peers[i].username@);
+            assert(next.peers@[i].hostname@ == old_peers[i].hostname@);
+        } else {
+            assert(next.peers@[i].username@ == old_peers[i + 1].username@);
+            assert(next.peers@[i].hostname@ == old_peers[i + 1].hostname@);
+        }
+        if i < index as int {
+            assert(peer_well_formed(&old_peers[i]));
+        } else {
+            assert(peer_well_formed(&old_peers[i + 1]));
+        }
+    }
+    assert forall|i: int, j: int| 0 <= i < j < next.peers@.len()
+        implies !same_identity(&next.peers@[i], &next.peers@[j])
+    by {
+        if i < index as int {
+            if j < index as int {
+                assert(!same_identity(&old_peers[i], &old_peers[j]));
+            } else {
+                assert(!same_identity(&old_peers[i], &old_peers[j + 1]));
+            }
+        } else {
+            assert(!same_identity(&old_peers[i + 1], &old_peers[j + 1]));
+        }
+    }
+    assert(next.peers@.len() <= MAX_PEERS as int);
+    assert(peer_state_well_formed(&next));
+    next
+}
+
 /// Apply one discovery event without performing I/O or reading the clock.
 ///
 /// Identity bytes are copied only after their lengths have been validated.
@@ -282,7 +409,7 @@ pub fn apply_event(
         PeerEvent::Joined {
             username,
             hostname,
-            observed_at,
+            observed_at: _,
         } => {
             match found {
                 Some(_index) => {
@@ -296,14 +423,7 @@ pub fn apply_event(
                     if state.peers.len() >= MAX_PEERS {
                         return Err(StateError::TableFull);
                     }
-                    let mut next = copy_state(state);
-                    next.peers.push(Peer {
-                        username: copy_bytes(username),
-                        hostname: copy_bytes(hostname),
-                        last_seen: observed_at,
-                    });
-                    reveal(peer_state_well_formed);
-                    assert(peer_state_well_formed(&next));
+                    let next = append_peer(state, username, hostname, observed_at);
                     Ok(TransitionResult {
                         state: next,
                         outcome: TransitionOutcome::Added,
@@ -314,10 +434,7 @@ pub fn apply_event(
         PeerEvent::Departed { .. } => {
             match found {
                 Some(index) => {
-                    let mut next = copy_state(state);
-                    next.peers.remove(index);
-                    reveal(peer_state_well_formed);
-                    assert(peer_state_well_formed(&next));
+                    let next = remove_peer_at(state, index);
                     Ok(TransitionResult {
                         state: next,
                         outcome: TransitionOutcome::Removed,
