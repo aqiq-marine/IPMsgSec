@@ -589,7 +589,6 @@ mod tests {
             Ok(ProtocolEvent::PeerJoined { .. })
         ));
     }
-}
     #[test]
     fn classifies_broadcast_absence_and_utf8_metadata_overrides_legacy_fields() {
         let data = b"legacy-nick\\0legacy-group\\0\\nUN:alice-utf8\\nHN:host-utf8\\nNN:display-name\\nGN:chemistry\\n";
@@ -660,4 +659,4 @@ mod tests {
             Err(ProtocolError::InvalidDiscoveryExtension)
         );
     }
-
+}
