@@ -531,7 +531,8 @@ mod tests {
                 observed_at: 10,
                 supports_utf8: false,
             },
-        ).unwrap();
+        )
+        .unwrap();
         let updated = apply_event(
             &first.state,
             PeerEvent::Joined {
