@@ -188,7 +188,11 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
     requires
         peer_state_well_formed(state),
     ensures
-        result.peers@ == state.peers@,
+        result.peers@.len() == state.peers@.len(),
+        forall|i: int| 0 <= i < state.peers@.len() ==>
+            result.peers@[i].username@ == state.peers@[i].username@
+            && result.peers@[i].hostname@ == state.peers@[i].hostname@
+            && result.peers@[i].last_seen == state.peers@[i].last_seen,
         peer_state_well_formed(&result),
 {
     let mut peers = Vec::new();
@@ -196,23 +200,28 @@ fn copy_state(state: &PeerState) -> (result: PeerState)
     while index < state.peers.len()
         invariant
             index <= state.peers.len(),
-            peers@ == state.peers@.take(index as int),
+            peers@.len() == index as int,
+            forall|j: int| 0 <= j < index as int ==>
+                peers@[j].username@ == state.peers@[j].username@
+                && peers@[j].hostname@ == state.peers@[j].hostname@
+                && peers@[j].last_seen == state.peers@[j].last_seen,
         decreases
             state.peers.len() - index,
     {
         let copied = copy_peer(&state.peers[index]);
-        assert(copied == state.peers@[index as int]);
         peers.push(copied);
-        assert(
-            state.peers@.take(index as int + 1)
-                == state.peers@.take(index as int).push(state.peers@[index as int])
-        );
-        assert(peers@ == state.peers@.take(index as int + 1));
         index += 1;
     }
     let result = PeerState { peers };
+    assert(result.peers@.len() == state.peers@.len());
+    assert forall|i: int| 0 <= i < state.peers@.len() implies
+        result.peers@[i].username@ == state.peers@[i].username@
+        && result.peers@[i].hostname@ == state.peers@[i].hostname@
+        && result.peers@[i].last_seen == state.peers@[i].last_seen
+    by {
+        assert(i < result.peers@.len());
+    }
     reveal(peer_state_well_formed);
-    assert(result.peers@ == state.peers@);
     assert(peer_state_well_formed(&result));
     result
 }
