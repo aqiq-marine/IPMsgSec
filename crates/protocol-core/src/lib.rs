@@ -4,8 +4,6 @@
 //! transport-facing boundary type; parse_packet also checks the size itself
 //! so callers cannot bypass the limit by passing a raw slice.
 
-/// Application-level maximum datagram size (8 KiB), not the UDP protocol maximum.
-
 /// A datagram that passed the application-level size bound.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BoundedDatagram<'a> {
