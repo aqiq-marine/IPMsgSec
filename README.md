@@ -127,7 +127,7 @@ Not yet specified. Do not assume that this project is licensed for redistributio
 
 ## Initial implementation baseline
 
-The initial workspace and verification smoke test are now present. See:
+The workspace now includes bounded peer discovery and a conservative ASCII-only text-message CLI. The protocol-core parser and state transition modules are selected by CI's Verus target; the UDP adapter and CLI remain unverified. See:
 - [Toolchain setup](docs/toolchain.md)
 - [MVP wire protocol subset](docs/protocol.md)
 - [Protocol core crate](crates/protocol-core/)
@@ -135,7 +135,7 @@ The initial workspace and verification smoke test are now present. See:
 - [Runtime packet parser](crates/protocol-core/src/parser.rs)
 - [CI workflow](.github/workflows/ci.yml)
 
-The smoke proof checks bounded offset arithmetic only. The runtime parser has unit tests, but its Verus proof and the CI run for the current revision are still pending. No end-to-end security theorem is claimed.
+The smoke proof checks bounded offset arithmetic. CI also verifies the runtime protocol-core target. No end-to-end security theorem is claimed; socket behavior, delivery, peer authenticity, and CLI behavior remain outside the proof boundary.
 
 
 ## CLI peer discovery
