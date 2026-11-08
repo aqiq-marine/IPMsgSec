@@ -397,8 +397,8 @@ pub fn encode_message_for_peer(
 mod tests {
     use super::*;
     use ipmsgsec_transport_udp::{
-        RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry, encode_send_message_with_encoding,
-        encode_text_body,
+        RECEIVE_BUFFER_SIZE, UdpTransport, encode_broadcast_entry,
+        encode_send_message_with_encoding, encode_text_body,
     };
     use std::net::UdpSocket;
     use std::time::Duration;
@@ -441,7 +441,9 @@ mod tests {
             .unwrap();
         let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
         let entry = encode_broadcast_entry(10, b"bob", b"remote").unwrap();
-        sender.send_to(&entry, transport.local_addr().unwrap()).unwrap();
+        sender
+            .send_to(&entry, transport.local_addr().unwrap())
+            .unwrap();
 
         let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
         let received = transport.recv_from(&mut buffer).unwrap();
@@ -451,7 +453,10 @@ mod tests {
         assert!(matches!(
             update.event,
             AppEvent::PeerJoined {
-                peer: PeerInfo { supports_utf8: true, .. },
+                peer: PeerInfo {
+                    supports_utf8: true,
+                    ..
+                },
                 kind: PeerJoinKindDto::BroadcastEntry,
                 change: PeerChange::Added,
             }
@@ -469,15 +474,12 @@ mod tests {
             .unwrap();
         let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
         let body = encode_text_body("こんにちは", MessageEncoding::Utf8).unwrap();
-        let packet = encode_send_message_with_encoding(
-            11,
-            b"bob",
-            b"remote",
-            &body,
-            MessageEncoding::Utf8,
-        )
-        .unwrap();
-        sender.send_to(&packet, transport.local_addr().unwrap()).unwrap();
+        let packet =
+            encode_send_message_with_encoding(11, b"bob", b"remote", &body, MessageEncoding::Utf8)
+                .unwrap();
+        sender
+            .send_to(&packet, transport.local_addr().unwrap())
+            .unwrap();
 
         let mut buffer = [0_u8; RECEIVE_BUFFER_SIZE];
         let received = transport.recv_from(&mut buffer).unwrap();
