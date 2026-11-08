@@ -313,7 +313,7 @@ fn append_peer(
             assert(next.peers@[i].hostname@ == state.peers@[i].hostname@);
             assert(next.peers@[j].username@ == username@);
             assert(next.peers@[j].hostname@ == hostname@);
-            assert(no_peer_with_identity(state.peers.as_slice(), username, hostname));
+            assert(no_peer_with_identity(&state.peers, username, hostname));
         }
     }
     assert(next.peers@.len() <= MAX_PEERS as int);
