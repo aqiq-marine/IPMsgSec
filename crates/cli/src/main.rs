@@ -117,7 +117,7 @@ where
         }
         if !bytes.is_ascii()
             || bytes.iter().any(|byte| {
-                *byte == 0 || !(*byte == b'\\n' || *byte == b'\\t' || (0x20..=0x7e).contains(byte))
+                *byte == 0 || !(*byte == b'\n' || *byte == b'\t' || (0x20..=0x7e).contains(byte))
             })
         {
             return Err("--message must be ASCII printable text (TAB/LF allowed; NUL and other controls are rejected)".to_owned());
