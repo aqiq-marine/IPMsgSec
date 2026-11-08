@@ -67,7 +67,7 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
         if bytes[index] == b':' {
             return Some(index);
         }
-        index = index + 1;
+        index += 1;
     }
     None
 }
@@ -76,7 +76,7 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
 /// Overflow is detected before multiplication/addition.
 fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
 {
-    if digits.len() == 0 {
+    if digits.is_empty() {
         return Err(ParseError::InvalidDecimal);
     }
 
@@ -89,7 +89,7 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
             digits.len() - index,
     {
         let byte = digits[index];
-        if byte < b'0' || byte > b'9' {
+        if !byte.is_ascii_digit() {
             return Err(ParseError::InvalidDecimal);
         }
 
@@ -291,5 +291,11 @@ mod tests {
     fn empty_additional_data_is_preserved() {
         let packet = parse(b"1:2:alice:pc:32:").unwrap();
         assert_eq!(packet.additional_data, b"");
+    }
+
+    #[test]
+    fn rejects_oversized_datagram() {
+        let input = vec![b'x'; MAX_PACKET_SIZE + 1];
+        assert_eq!(parse(&input), Err(ParseError::PacketTooLarge));
     }
 }
