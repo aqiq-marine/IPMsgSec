@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 ipmsgsec-protocol-core = { path = "../protocol-core" }
+encoding_rs = "0.8"
 
 [lints]
 workspace = true
