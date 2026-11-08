@@ -4,9 +4,7 @@
 //! The verified core never interprets it as an IP address or socket address.
 
 use crate::protocol::{PeerIdentity, PeerJoinKind, ProtocolEvent};
-use crate::state::{
-    PeerEvent, PeerState, StateError, TransitionOutcome, apply_event,
-};
+use crate::state::{PeerEvent, PeerState, StateError, TransitionOutcome, apply_event};
 use vstd::prelude::*;
 
 verus! {
