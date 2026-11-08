@@ -502,7 +502,11 @@ mod tests {
         let parsed_entry = parse_packet(&entry).unwrap();
         let parsed_exit = parse_packet(&exit).unwrap();
         assert_eq!(parsed_entry.command, CommandKind::BroadcastEntry);
+        assert_eq!(parsed_entry.command_word, 1 | IPMSG_CAPUTF8OPT);
+        assert_eq!(parsed_entry.option_flags, IPMSG_CAPUTF8OPT);
         assert_eq!(parsed_exit.command, CommandKind::BroadcastExit);
+        assert_eq!(parsed_exit.command_word, 2);
+        assert_eq!(parsed_exit.option_flags, 0);
         assert!(parsed_entry.additional_data.is_empty());
         assert!(parsed_exit.additional_data.is_empty());
         assert!(matches!(
@@ -535,6 +539,48 @@ mod tests {
             Ok(ProtocolEvent::MessageReceived { body, .. })
                 if body == b"hello: world\nnext"
         ));
+    }
+
+    #[test]
+    fn encodes_and_decodes_utf8_message_with_negotiated_flag() {
+        let text = "こんにちは 🌏";
+        let body = encode_text_body(text, MessageEncoding::Utf8).unwrap();
+        let bytes = encode_send_message_with_encoding(
+            124,
+            b"alice",
+            b"workstation",
+            &body,
+            MessageEncoding::Utf8,
+        ).unwrap();
+        let packet = parse_packet(&bytes).unwrap();
+        assert_eq!(packet.command_word, 32 | IPMSG_UTF8OPT);
+        assert_eq!(packet.option_flags, IPMSG_UTF8OPT);
+        assert_eq!(packet.additional_data, text.as_bytes());
+        let event = classify_packet(&packet).unwrap();
+        assert!(matches!(
+            event,
+            ProtocolEvent::MessageReceived {
+                body,
+                encoding: MessageEncoding::Utf8,
+                ..
+            } if body == text.as_bytes()
+        ));
+        assert_eq!(
+            decode_text_body(packet.additional_data, MessageEncoding::Utf8).unwrap(),
+            text
+        );
+    }
+
+    #[test]
+    fn legacy_encoder_rejects_unrepresentable_text_and_decoder_is_strict() {
+        assert_eq!(
+            encode_text_body("emoji 😀", MessageEncoding::Cp932),
+            Err(EncodeError::UnrepresentableCp932)
+        );
+        assert_eq!(
+            decode_text_body(&[0xff], MessageEncoding::Utf8),
+            Err(DecodeError::InvalidUtf8)
+        );
     }
 
     #[test]
