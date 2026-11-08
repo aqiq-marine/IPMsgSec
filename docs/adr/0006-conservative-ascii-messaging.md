@@ -22,9 +22,12 @@ when displaying attacker-controlled network data.
 - Printable ASCII, TAB, and LF are allowed. NUL and other control bytes are
   rejected; attachment extensions are not supported.
 - The application-level body limit is 4096 bytes, independent of the
-  8192-byte datagram limit.
+  8192-byte datagram limit. The core rejects empty and oversized bodies and
+  NUL-separated extension payloads on receive.
 - No `IPMSG_CAPUTF8OPT` capability is advertised, no `IPMSG_UTF8OPT` flag
-  is set, and no `IPMSG_SENDCHECKOPT` acknowledgement is requested.
+  is set, and no `IPMSG_SENDCHECKOPT` acknowledgement is requested. The
+  initial receiver rejects all SENDMSG option flags rather than partially
+  interpreting unimplemented extensions.
 - Received message bytes remain opaque and are rendered with byte escaping.
   The CLI does not decode incoming bodies as UTF-8 or emit raw control bytes
   to the terminal.
