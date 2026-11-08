@@ -264,7 +264,7 @@ pub fn encode_send_message(
         if *byte == 0 {
             return Err(EncodeError::ContainsNul);
         }
-        if !(*byte == b'\n' || *byte == b'\\t' || (0x20..=0x7e).contains(byte)) {
+        if !(*byte == b'\n' || *byte == b'\t' || (0x20..=0x7e).contains(byte)) {
             return Err(EncodeError::UnsupportedControl);
         }
     }
