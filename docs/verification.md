@@ -16,11 +16,17 @@ Do not use "verified" without identifying target module, theorem, tool version, 
 
 ## Phase 1 — parser
 
-Model the parser as a pure function over a bounded byte slice:
+The first parser implementation lives in `crates/protocol-core/src/parser.rs`. It is part of the runtime crate and is written inside the Verus `verus!` macro, so the same function is compiled by ordinary Cargo and selected for Verus verification. The crate opts into Cargo-Verus with `[package.metadata.verus]`.
+
+Its current interface is:
 
 ```rust
 fn parse_packet(input: &[u8]) -> Result<Packet, ParseError>
 ```
+
+The parser splits exactly the first five ':' delimiters, retains the rest as opaque bytes, parses decimal fields with pre-multiplication overflow checks, and separates the low command byte from the upper option flags. Unknown command IDs remain an explicit `Unsupported` variant.
+
+The current tests cover successful parsing, colons in the body, option flags, unknown commands, truncation, missing delimiters, empty identity fields, malformed numeric fields, overflow, unsupported versions, and empty additional data. These tests are not formal proofs.
 
 Proof obligations:
 1. Every input slice satisfying the maximum-length precondition returns a result.
