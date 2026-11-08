@@ -16,6 +16,7 @@ pub enum CommandKind {
     BroadcastEntry,
     BroadcastExit,
     AnswerEntry,
+    BroadcastAbsence,
     SendMessage,
     Unsupported(u8),
 }
@@ -181,12 +182,14 @@ pub open spec fn command_matches(command: CommandKind, command_id: u8) -> bool
         CommandKind::BroadcastEntry => command_id == 1,
         CommandKind::BroadcastExit => command_id == 2,
         CommandKind::AnswerEntry => command_id == 3,
+        CommandKind::BroadcastAbsence => command_id == 4,
         CommandKind::SendMessage => command_id == 32,
         CommandKind::Unsupported(other) =>
             other == command_id
             && command_id != 1
             && command_id != 2
             && command_id != 3
+            && command_id != 4
             && command_id != 32,
     }
 }
@@ -200,6 +203,7 @@ fn classify_command(command_id: u8) -> (result: CommandKind)
         1 => CommandKind::BroadcastEntry,
         2 => CommandKind::BroadcastExit,
         3 => CommandKind::AnswerEntry,
+        4 => CommandKind::BroadcastAbsence,
         32 => CommandKind::SendMessage,
         other => CommandKind::Unsupported(other),
     }
