@@ -148,6 +148,10 @@ pub fn apply_discovery_event(
                 username: identity.username(),
                 hostname: identity.hostname(),
                 observed_at,
+                supports_utf8: match event {
+                    ProtocolEvent::PeerJoined { supports_utf8, .. } => *supports_utf8,
+                    _ => false,
+                },
             },
         ProtocolEvent::PeerDeparted(identity) =>
             PeerEvent::Departed {
@@ -208,6 +212,7 @@ mod tests {
         ProtocolEvent::PeerJoined {
             identity: identity(),
             kind,
+            supports_utf8: false,
         }
     }
 
@@ -328,6 +333,7 @@ mod tests {
         let event = ProtocolEvent::MessageReceived {
             sender: identity(),
             body: b"hello",
+            encoding: crate::protocol::MessageEncoding::Cp932,
         };
 
         assert_eq!(
