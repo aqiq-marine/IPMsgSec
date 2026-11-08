@@ -25,6 +25,7 @@ Accepted ADRs should generally not be edited to rewrite history. Add a new ADR t
 | [0008](0008-shared-application-layer.md) | Introduce a shared UI-independent application facade | Accepted |
 | [0009](0009-single-owner-session-worker.md) | Use a single-owner worker for session lifecycle and event distribution | Accepted |
 | [0010](0010-tauri-desktop-and-tray-lifecycle.md) | Use a Windows-first Tauri desktop shell with tray-resident lifecycle | Accepted |
-| [0011](0011-protocol-compatibility-policy.md) | Separate wire parsing, semantic support, and security policy | Accepted |
+| [0011](0011-desktop-application-session-integration.md) | Integrate the desktop client through the shared application worker | Accepted |
+| [0012](0012-protocol-compatibility-policy.md) | Separate wire parsing, semantic support, and security policy | Accepted |
 
 When a decision changes, add a new numbered ADR and update this index.
