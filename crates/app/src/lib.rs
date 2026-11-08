@@ -473,6 +473,7 @@ mod tests {
                 },
                 kind: PeerJoinKindDto::BroadcastEntry,
                 change: PeerChange::Added,
+                ..
             }
         ));
         assert!(update.response_action.is_some());
