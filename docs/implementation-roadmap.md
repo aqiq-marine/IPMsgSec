@@ -38,7 +38,7 @@ UDP sender / application layer / CLI or GUI (unverified)
 
 The runtime parser is in `crates/protocol-core/src/parser.rs`. It parses the first five colon-delimited fields, preserves the opaque tail, checks decimal overflow, and retains unknown command IDs as `Unsupported`.
 
-The peer table is in `crates/protocol-core/src/state.rs`. It is bounded to 64 peers and 64 bytes per identity component. Identity matching is byte-exact. Duplicate joins and unknown departures are no-ops. A duplicate join preserves the first observation timestamp; expiration and timestamp refresh are not implemented.
+The peer table is in `crates/protocol-core/src/state.rs`. It is bounded to 64 peers and 64 bytes per identity component. Identity matching is byte-exact. Repeated joins preserve the first observation timestamp and refresh the advertised UTF-8 capability; unknown departures are no-ops. Expiration and timestamp refresh are not implemented.
 
 The parser and peer-state modules are selected by the Cargo-Verus verification target. Existing CI also runs Rust tests, formatting, and Clippy. See [verification strategy](verification.md) for the recorded evidence and its exact scope.
 
@@ -145,13 +145,14 @@ Acceptance: Rust tests, formatting, Clippy, and Verus CI passed on the implement
 
 ### Implementation PR 7 — Shared application layer
 
-- Add an `ipmsgsec-app` crate that owns application-level orchestration behind a UI-independent API.
-- Move communication orchestration out of the CLI and make the CLI a client of this API.
-- Define owned, serializable application DTOs for peers, messages, errors, and status. Do not expose borrowed parser slices or transport-specific socket handles to a GUI.
-- Represent encoding and decoding failures explicitly; do not erase the distinction between wire bytes and decoded text.
-- Keep protocol-core and transport-udp as lower-level dependencies. The application layer must not duplicate protocol parsing.
+- [x] Add an `ipmsgsec-app` crate with a UI-independent application API.
+- [x] Move inbound event handling, peer-state orchestration, peer snapshots, and outbound message encoding out of the CLI.
+- [x] Define owned, serializable DTOs for peers, messages, errors, and status. No borrowed parser slices or socket handles cross the UI boundary.
+- [x] Preserve raw message bytes and explicit encoding/decode-error information alongside decoded text.
+- [x] Keep protocol-core and transport-udp as lower-level dependencies; the app layer delegates parsing and transitions rather than duplicating them.
+- [x] Add application tests for discovery DTOs, message decoding, encoding selection, and status/error snapshots.
 
-Acceptance: CLI behavior is preserved through the shared API; application tests cover message/peer operations; protocol-core's proof boundary is unchanged.
+Acceptance: Rust tests (78 passed), formatting, Clippy, and Verus CI passed on PR #8 (run [42456163187](https://github.com/aqiq-marine/IPMsgSec/actions/runs/42456163187)). The protocol-core proof boundary is unchanged; the application crate itself remains unverified.
 
 ### Implementation PR 8 — Session lifecycle and event distribution
 
