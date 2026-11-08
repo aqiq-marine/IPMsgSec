@@ -556,5 +556,4 @@ mod tests {
         assert!(update.response_action.is_none());
         assert!(session.peers()[0].is_absent);
     }
-
 }
