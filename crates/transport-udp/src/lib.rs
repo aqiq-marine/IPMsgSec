@@ -10,7 +10,8 @@ use std::net::{SocketAddr, UdpSocket};
 
 use ipmsgsec_protocol_core::{
     BoundedDatagram, MAX_IDENTITY_BYTES, MAX_PACKET_SIZE, ParseError, ProtocolAction,
-    ProtocolError, ProtocolEvent, ReplyTarget, classify_packet, parse_packet,
+    MAX_MESSAGE_BODY_BYTES, ProtocolError, ProtocolEvent, ReplyTarget, classify_packet,
+    parse_packet,
 };
 
 /// Conventional IP Messenger UDP port. Binding remains an explicit caller choice.
@@ -18,9 +19,6 @@ pub const IPMSG_UDP_PORT: u16 = 2425;
 
 /// One extra byte makes truncation beyond the application limit observable.
 pub const RECEIVE_BUFFER_SIZE: usize = MAX_PACKET_SIZE + 1;
-
-/// Initial plain-text message body limit; deliberately below the datagram cap.
-pub const MAX_MESSAGE_BODY_BYTES: usize = 4 * 1024;
 
 /// A received, size-checked datagram and the source-address association for it.
 #[derive(Debug)]
