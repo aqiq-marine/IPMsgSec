@@ -100,7 +100,15 @@ proof fn decimal_value_push(bytes: Seq<u8>, digit: u8)
         decimal_value(bytes.push(digit))
             == decimal_value(bytes) * 10 + digit as int - b'0' as int,
 {
+    let prefix_len = bytes.len();
+    assert(bytes.push(digit).len() == prefix_len + 1);
+    assert(bytes.push(digit).take(prefix_len as int) == bytes);
+    assert(bytes.push(digit)[prefix_len as int] == digit);
     reveal(decimal_value);
+    assert(
+        decimal_value(bytes.push(digit))
+            == decimal_value(bytes) * 10 + digit as int - b'0' as int
+    );
 }
 
 /// Parse a non-empty sequence of ASCII decimal digits as u64.
@@ -158,6 +166,10 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
         value = value * 10 + digit;
         index += 1;
     }
+
+    assert(index == digits.len());
+    assert(digits@.take(index as int) == digits@);
+    assert(value as int == decimal_value(digits@));
 
     Ok(value)
 }
