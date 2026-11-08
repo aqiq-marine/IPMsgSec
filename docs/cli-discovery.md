@@ -110,10 +110,11 @@ endpoints; source IP addresses are unauthenticated UDP metadata.
 
 - Startup sends BR_ENTRY with `IPMSG_CAPUTF8OPT` in its command word.
 - ANSENTRY responses also advertise `IPMSG_CAPUTF8OPT`; BR_EXIT does not.
-- A received BR_ENTRY is classified by protocol-core, applied through
-  `apply_discovery_event`, and answered with ANSENTRY to the exact source
+- A received BR_ENTRY is processed through `ApplicationSession`, which
+  delegates classification and state transition to protocol-core and returns
+  an abstract response action. The CLI sends ANSENTRY to the exact source
   address paired with that datagram.
-- A received ANSENTRY adds the peer without replying.
+- A received ANSENTRY adds or updates the peer without replying.
 - A received BR_EXIT removes the exact byte-identity match.
 - Malformed, oversized, unsupported, and non-discovery packets are ignored
   with a concise diagnostic; packet bodies are not logged.
