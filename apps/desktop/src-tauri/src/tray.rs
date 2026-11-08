@@ -5,6 +5,8 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
+use crate::state::DesktopState;
+
 const TRAY_ICON_SIZE: u32 = 32;
 
 fn tray_image() -> Image<'static> {
@@ -42,7 +44,14 @@ pub fn install(app: &mut App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                if let Some(state) = app.try_state::<DesktopState>()
+                    && let Err(error) = state.shutdown()
+                {
+                    eprintln!("IPMsgSec shutdown error: {error}");
+                }
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
