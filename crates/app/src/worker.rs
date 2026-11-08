@@ -214,7 +214,7 @@ impl ApplicationService {
             return Err(ServiceError::InvalidConfiguration);
         }
 
-        let mut transport =
+        let transport =
             UdpTransport::bind(config.bind_address).map_err(|_| ServiceError::OperationFailed)?;
         transport
             .set_broadcast(true)
