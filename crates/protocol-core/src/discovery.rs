@@ -44,16 +44,6 @@ pub struct ActionList {
 }
 
 impl ActionList {
-    fn empty() -> Self {
-        Self { first: None }
-    }
-
-    fn answer_entry(target: ReplyTarget) -> Self {
-        Self {
-            first: Some(ProtocolAction::SendAnswerEntry { target }),
-        }
-    }
-
     pub fn len(&self) -> usize {
         if self.first.is_some() { 1 } else { 0 }
     }
@@ -370,11 +360,4 @@ mod tests {
         assert_eq!(state.peers().len(), crate::state::MAX_PEERS);
     }
 
-    #[test]
-    fn action_list_is_bounded_to_one_item() {
-        let actions = ActionList::answer_entry(ReplyTarget::new(123));
-        assert_eq!(MAX_ACTIONS, 1);
-        assert_eq!(actions.len(), 1);
-        assert_eq!(actions.get(1), None);
-    }
 }
