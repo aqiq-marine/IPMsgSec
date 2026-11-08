@@ -5,7 +5,7 @@
 //! colons in a message body are preserved.
 
 use vstd::prelude::*;
-use crate::{BoundedDatagram, MAX_PACKET_SIZE};
+use crate::MAX_PACKET_SIZE;
 
 verus! {
 
@@ -109,9 +109,8 @@ fn parse_decimal(digits: &[u8]) -> (result: Result<u64, ParseError>)
 ///
 /// This function is pure: it borrows the input and neither allocates nor
 /// mutates application state. It consumes exactly five header delimiters.
-pub fn parse_packet<'a>(datagram: BoundedDatagram<'a>) -> (result: Result<Packet<'a>, ParseError>)
+pub fn parse_packet<'a>(bytes: &'a [u8]) -> (result: Result<Packet<'a>, ParseError>)
 {
-    let bytes = datagram.as_bytes();
     if bytes.len() > MAX_PACKET_SIZE {
         return Err(ParseError::PacketTooLarge);
     }
@@ -204,11 +203,8 @@ pub fn parse_packet<'a>(datagram: BoundedDatagram<'a>) -> (result: Result<Packet
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::BoundedDatagram;
-
     fn parse(input: &[u8]) -> Result<Packet<'_>, ParseError> {
-        let datagram = BoundedDatagram::new(input).expect("test input is bounded");
-        parse_packet(datagram)
+        parse_packet(input)
     }
 
     #[test]
