@@ -123,13 +123,13 @@ Implemented in the initial `ipmsgsec-cli` text-message increment:
 - Restrict outbound messages to printable ASCII plus TAB/LF. ASCII is byte-compatible with both CP932 and UTF-8, so this subset does not claim UTF-8 negotiation.
 - Do not request SENDCHECK, send RECVMSG acknowledgements, retry, or parse attachment extensions.
 
-The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation and CP932 support are the next protocol milestone (PR 6); delivery acknowledgements, retries, and attachment handling remain deferred.
+The CLI and UDP adapter remain unverified. UTF-8 capability tracking/negotiation and CP932 support are the next protocol milestone (Implementation PR 6); delivery acknowledgements, retries, and attachment handling remain deferred.
 
 ## Next implementation sequence
 
 The next milestones intentionally complete wire-encoding negotiation before introducing the shared application API. This avoids baking the current ASCII-only limitation into the interfaces shared by the CLI and future GUI. See [ADR 0007](adr/0007-utf8-negotiation-before-app-layer.md).
 
-### PR 6 — UTF-8 capability negotiation
+### Implementation PR 6 — UTF-8 capability negotiation
 
 - Verify the exact command-specific wire semantics of `IPMSG_CAPUTF8OPT` and `IPMSG_UTF8OPT` against the protocol specification and representative clients.
 - Add bounded peer capability state and parse remote capability advertisements.
@@ -143,7 +143,7 @@ The next milestones intentionally complete wire-encoding negotiation before intr
 
 Acceptance: capability state is bounded; unsupported or malformed data is handled explicitly; no peer is treated as UTF-8-capable without an observed advertisement; existing ASCII behavior remains valid; Rust tests, Clippy, formatting, and Verus CI pass. Only pure protocol decisions actually covered by Verus may be described as proved.
 
-### PR 7 — Shared application layer
+### Implementation PR 7 — Shared application layer
 
 - Add an `ipmsgsec-app` crate that owns application-level orchestration behind a UI-independent API.
 - Move communication orchestration out of the CLI and make the CLI a client of this API.
@@ -153,7 +153,7 @@ Acceptance: capability state is bounded; unsupported or malformed data is handle
 
 Acceptance: CLI behavior is preserved through the shared API; application tests cover message/peer operations; protocol-core's proof boundary is unchanged.
 
-### PR 8 — Session lifecycle and event distribution
+### Implementation PR 8 — Session lifecycle and event distribution
 
 - Give one background worker/actor sole ownership of the mutable protocol session and UDP transport.
 - Define commands such as start, stop, discover, and send-message, plus events such as peer joined/updated/departed, message received, and transport error.
@@ -163,7 +163,7 @@ Acceptance: CLI behavior is preserved through the shared API; application tests 
 
 Acceptance: lifecycle and event ordering are tested; shutdown does not leave a worker or socket running; queue limits and overload behavior are explicit.
 
-### PR 9 — Tauri 2 GUI MVP
+### Implementation PR 9 — Tauri 2 GUI MVP
 
 - Add a Tauri 2 desktop shell with a TypeScript/React frontend.
 - Invoke the shared application API through a narrow Rust command boundary.
@@ -174,13 +174,13 @@ Acceptance: lifecycle and event ordering are tested; shutdown does not leave a w
 
 Acceptance: GUI and CLI use the same application layer; GUI tests cover rendering/state mapping where practical; the protocol-core proof target remains unchanged.
 
-### PR 10 — Message delivery semantics
+### Implementation PR 10 — Message delivery semantics
 
 - Specify and implement acknowledgements, duplicate suppression, retry limits/backoff, and delivery status.
 - Do not present successful UDP submission as proof of remote delivery.
 - Keep retries and message queues bounded.
 
-### PR 11 — Persistence
+### Implementation PR 11 — Persistence
 
 - Add persistence for settings and message history only after defining schema, migration, retention, and deletion behavior.
 - Treat stored message content and peer metadata as untrusted data when loaded.
