@@ -316,12 +316,18 @@ pub fn encode_send_message_with_encoding(
     }
     match encoding {
         MessageEncoding::Utf8 => {
-            std::str::from_utf8(body).map_err(|_| EncodeError::InvalidUtf8)?;
+            let text = std::str::from_utf8(body).map_err(|_| EncodeError::InvalidUtf8)?;
+            if text.chars().any(|ch| ch.is_control() && ch != '\\n' && ch != '\\t') {
+                return Err(EncodeError::UnsupportedControl);
+            }
         }
         MessageEncoding::Cp932 => {
-            let (_, had_errors) = SHIFT_JIS.decode_without_bom_handling(body);
+            let (text, had_errors) = SHIFT_JIS.decode_without_bom_handling(body);
             if had_errors {
                 return Err(EncodeError::UnrepresentableCp932);
+            }
+            if text.chars().any(|ch| ch.is_control() && ch != '\\n' && ch != '\\t') {
+                return Err(EncodeError::UnsupportedControl);
             }
         }
     }
@@ -482,7 +488,8 @@ mod tests {
         assert_eq!(packet.packet_number, 123);
         assert_eq!(packet.username, b"alice");
         assert_eq!(packet.hostname, b"workstation");
-        assert_eq!(packet.command_word, 3);
+        assert_eq!(packet.command_word, 3 | IPMSG_CAPUTF8OPT);
+        assert_eq!(packet.option_flags, IPMSG_CAPUTF8OPT);
         assert_eq!(packet.command, CommandKind::AnswerEntry);
         assert!(packet.additional_data.is_empty());
         let event = classify_packet(&packet).unwrap();
