@@ -517,6 +517,34 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_join_updates_capability_without_resetting_first_seen() {
+        let state = PeerState::empty();
+        let first = apply_event(
+            &state,
+            PeerEvent::Joined {
+                username: b"alice",
+                hostname: b"pc",
+                observed_at: 10,
+                supports_utf8: false,
+            },
+        ).unwrap();
+        let updated = apply_event(
+            &first.state,
+            PeerEvent::Joined {
+                username: b"alice",
+                hostname: b"pc",
+                observed_at: 20,
+                supports_utf8: true,
+            },
+        ).unwrap();
+
+        assert_eq!(updated.outcome, TransitionOutcome::Updated);
+        assert_eq!(updated.state.peers()[0].first_seen_at(), 10);
+        assert!(updated.state.peers()[0].supports_utf8());
+        assert!(!first.state.peers()[0].supports_utf8());
+    }
+
+    #[test]
     fn departure_removes_matching_peer_only() {
         let state = PeerState::empty();
         let first = apply_event(&state, joined(b"alice", b"pc", 10)).unwrap();
