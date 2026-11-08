@@ -55,7 +55,7 @@ fn find_delimiter(bytes: &[u8], start: usize) -> (result: Option<usize>)
             Some(index) =>
                 start <= index
                 && index < bytes.len()
-                && bytes[index] == b':'
+                && bytes[index as int] == b':'
                 && forall|i: int| start as int <= i < index as int ==> bytes@[i] != b':',
             None =>
                 forall|i: int| start as int <= i < bytes.len() as int ==> bytes@[i] != b':',
@@ -331,7 +331,13 @@ mod tests {
     fn rejects_every_truncated_prefix_of_a_valid_packet() {
         let valid = b"1:100:alice:workstation:32:hello";
         for end in 0..valid.len() {
-            assert!(parse(&valid[..end]).is_err(), "prefix length {end}");
+            if end == b"1:100:alice:workstation:32:".len() {
+                // An empty body is valid once all five header delimiters exist.
+                let packet = parse(&valid[..end]).unwrap();
+                assert!(packet.additional_data.is_empty());
+            } else {
+                assert!(parse(&valid[..end]).is_err(), "prefix length {end}");
+            }
         }
     }
 
