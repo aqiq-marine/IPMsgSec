@@ -21,5 +21,6 @@ Accepted ADRs should generally not be edited to rewrite history. Add a new ADR t
 | [0004](0004-no-unsafe-in-core.md) | Prohibit unsafe Rust in the verified core | Accepted |
 | [0005](0005-explicit-ipv4-discovery-destinations.md) | Require explicit IPv4 discovery destinations | Accepted |
 | [0006](0006-conservative-ascii-messaging.md) | Use a conservative ASCII-only text-message subset | Accepted |
+| [0007](0007-utf8-negotiation-before-app-layer.md) | Implement UTF-8 capability negotiation before the application layer | Accepted |
 
 When a decision changes, add a new numbered ADR and update this index.
